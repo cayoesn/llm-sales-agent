@@ -223,6 +223,36 @@ async def test_agent_chat_ollama_with_item_id_alias():
 
 
 @pytest.mark.asyncio
+async def test_agent_chat_ollama_with_user_id_json_arguments():
+    mock_res1 = MagicMock()
+    mock_res1.json.return_value = {
+        "message": {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [
+                {
+                    "function": {
+                        "name": "add_to_cart",
+                        "arguments": '{"user_id":"s1","produto":"tênis de corrida","quantidade":2,"preco":150.0}',
+                    }
+                }
+            ],
+        }
+    }
+
+    mock_res2 = MagicMock()
+    mock_res2.json.return_value = {
+        "message": {"content": "Added the product using JSON arguments."}
+    }
+
+    with patch("httpx.AsyncClient.post", side_effect=[mock_res1, mock_res2]):
+        agent = SalesAgent()
+        with patch("app.services.SalesService.add_to_cart", new_callable=AsyncMock, return_value="Success"):
+            resp = await agent.chat("s1", "quero adicionar 2 tênis de corrida")
+            assert resp == "Added the product using JSON arguments."
+
+
+@pytest.mark.asyncio
 async def test_agent_chat_ollama_with_show_cart():
     mock_res1 = MagicMock()
     mock_res1.json.return_value = {

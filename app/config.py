@@ -11,8 +11,10 @@ class Settings(BaseSettings):
     LLM_PROVIDER: str = "ollama"
     OLLAMA_BASE_URL: str = "http://ollama:11434"
     OLLAMA_MODEL: str = "llama7b"
+    OLLAMA_TEMPERATURE: float | None = None
     GEMINI_API_KEY: str | None = None
     GEMINI_MODEL: str = "gemini-1.5-flash"
+    GEMINI_TEMPERATURE: float | None = None
 
     # Langfuse
     LANGFUSE_PUBLIC_KEY: str = "pk-lf-demo"

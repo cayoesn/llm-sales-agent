@@ -8,6 +8,7 @@ from app.repository import repo
 class SalesService:
     @staticmethod
     async def get_or_create_cart(session_id: str) -> Cart:
+        """Recupera o carrinho existente ou cria um novo para a sessão do usuário."""
         if session_id not in repo.carts:
             repo.carts[session_id] = Cart(session_id=session_id)
         return repo.carts[session_id]
@@ -16,6 +17,7 @@ class SalesService:
     async def add_to_cart(
         session_id: str, product_name: str, quantity: int, price: float = 0.0
     ) -> str:
+        """Adiciona um produto ao carrinho com nome, quantidade e preço."""
         cart = await SalesService.get_or_create_cart(session_id)
         product_id = product_name.lower().replace(" ", "_")
 
@@ -36,6 +38,7 @@ class SalesService:
 
     @staticmethod
     async def remove_from_cart(session_id: str, product_name: str) -> str:
+        """Remove um produto específico do carrinho."""
         cart = await SalesService.get_or_create_cart(session_id)
         product_id = product_name.lower().replace(" ", "_")
         cart.items = [item for item in cart.items if item.product_id != product_id]
@@ -44,12 +47,14 @@ class SalesService:
 
     @staticmethod
     async def clear_cart(session_id: str) -> str:
+        """Limpa todos os itens do carrinho do usuário."""
         if session_id in repo.carts:
             del repo.carts[session_id]
         return "Cart cleared."
 
     @staticmethod
     async def show_cart(session_id: str) -> str:
+        """Mostra os itens atuais do carrinho e o total acumulado."""
         cart = await SalesService.get_or_create_cart(session_id)
         if not cart.items:
             return "Your cart is empty."
@@ -68,6 +73,7 @@ class SalesService:
 
     @staticmethod
     async def checkout(session_id: str) -> str:
+        """Finaliza o pedido e gera um código PIX para pagamento."""
         cart = await SalesService.get_or_create_cart(session_id)
         if not cart.items:
             return "Cart is empty."
@@ -92,6 +98,7 @@ class SalesService:
 
     @staticmethod
     async def get_order_status(order_id: str) -> str:
+        """Consulta o status de um pedido usando o ID do pedido."""
         order = repo.orders.get(order_id)
         if not order:
             return OrderStatus.NOT_FOUND.value
@@ -99,6 +106,7 @@ class SalesService:
 
     @staticmethod
     async def get_session(session_id: str) -> ConversationSession:
+        """Recupera ou cria uma sessão de conversa para o usuário."""
         if session_id not in repo.sessions:
             repo.sessions[session_id] = ConversationSession(session_id=session_id)
         return repo.sessions[session_id]

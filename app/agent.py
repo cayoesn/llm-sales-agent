@@ -1,4 +1,5 @@
 from typing import Any, cast
+import json
 
 import httpx
 from google import genai
@@ -62,7 +63,7 @@ def _build_gemini_tools() -> list[types.Tool]:
             function_declarations=[
                 _tool_schema(
                     "add_to_cart",
-                    "Adds a product to the cart.",
+                    "Use this tool only when the user explicitly wants to add a product to the cart with quantity and price. Do not use this tool to inspect or show the cart.",
                     {
                         "type": "object",
                         "properties": {
@@ -76,7 +77,7 @@ def _build_gemini_tools() -> list[types.Tool]:
                 ),
                 _tool_schema(
                     "remove_from_cart",
-                    "Removes a product from the cart.",
+                    "Use this tool when the user explicitly wants to remove a product from the cart.",
                     {
                         "type": "object",
                         "properties": {
@@ -88,7 +89,7 @@ def _build_gemini_tools() -> list[types.Tool]:
                 ),
                 _tool_schema(
                     "clear_cart",
-                    "Clears the user's cart.",
+                    "Use this tool when the user wants to empty the entire cart.",
                     {
                         "type": "object",
                         "properties": {
@@ -99,7 +100,7 @@ def _build_gemini_tools() -> list[types.Tool]:
                 ),
                 _tool_schema(
                     "checkout",
-                    "Completes the purchase and generates the PIX code.",
+                    "Use this tool when the user wants to complete the purchase and receive a PIX payment code.",
                     {
                         "type": "object",
                         "properties": {
@@ -110,7 +111,7 @@ def _build_gemini_tools() -> list[types.Tool]:
                 ),
                 _tool_schema(
                     "show_cart",
-                    "Shows the current cart contents.",
+                    "Use this tool to inspect the cart contents and return the list of items and total price.",
                     {
                         "type": "object",
                         "properties": {
@@ -121,7 +122,7 @@ def _build_gemini_tools() -> list[types.Tool]:
                 ),
                 _tool_schema(
                     "get_order_status",
-                    "Checks the status of an order.",
+                    "Use this tool to retrieve the current status of an order by its ID.",
                     {
                         "type": "object",
                         "properties": {
@@ -143,24 +144,38 @@ class SalesAgent:
     def __init__(self) -> None:
         instruction = "\n".join(
             [
-                "You are the virtual sales assistant for LuizaLabs.",
-                "Your mission is to help customers with their shopping cart.",
+                "Você é o assistente virtual de vendas da LuizaLabs.",
+                "Sua missão é ajudar os clientes com o carrinho de compras e executar apenas a ferramenta correta.",
                 "",
                 "WORKFLOW:",
-                "1. Understand what the user wants.",
-                "2. Call the appropriate tool when needed.",
-                "3. Respond politely in English confirming the action.",
+                "1. Entenda a intenção do usuário.",
+                "2. Escolha somente a ferramenta que corresponde à intenção.",
+                "3. Responda educadamente em inglês confirmando a ação.",
                 "",
-                "RULES:",
-                "- If the user wants to buy or add something, use 'add_to_cart'.",
-                "- If the user wants to remove something, use 'remove_from_cart'.",
-                "- If the user wants to see the cart contents, use 'show_cart'.",
-                "- To check an order status, ask for the order ID if it is missing.",
-                "- Use 'get_order_status' to look up the order.",
-                "- Always generate the PIX code during checkout.",
+                "REGRAS:",
+                "- Se o usuário pedir para adicionar um produto ao carrinho, use 'add_to_cart'.",
+                "- Se o usuário pedir para remover um produto do carrinho, use 'remove_from_cart'.",
+                "- Se o usuário pedir para visualizar, inspecionar ou consultar o carrinho, use 'show_cart'.",
+                "- Se a mensagem pedir apenas para ver o carrinho, use 'show_cart' e não use 'add_to_cart'.",
+                "- Se o usuário pedir para esvaziar o carrinho, use 'clear_cart'.",
+                "- Se o usuário pedir para finalizar a compra e pagar, use 'checkout'.",
+                "- Se o usuário pedir para pagar ou comprar, não use 'show_cart'. Use 'checkout' para finalizar a compra.",
+                "- Se o usuário pedir o status de um pedido, use 'get_order_status'.",
+                "- Se o usuário perguntar sobre o status de um pedido sem o ID, peça o ID antes de chamar 'get_order_status'.",
+                "- Sempre gere o código PIX durante o checkout.",
+                "",
+                "EXEMPLOS:",
+                "- 'Mostrar meu carrinho' -> use 'show_cart'.",
+                "- 'Mostre o carrinho' -> use 'show_cart'.",
+                "- 'Adicionar 2 tênis ao carrinho' -> use 'add_to_cart'.",
+                "- 'Remova o teclado do meu carrinho' -> use 'remove_from_cart'.",
+                "- 'Limpar meu carrinho' -> use 'clear_cart'.",
+                "- 'Finalizar a compra' -> use 'checkout'.",
             ]
         )
 
+        self._instruction = instruction
+        self._tools_metadata = self._build_tools_metadata()
         self.agent = Agent(
             name="SalesAssistant",
             model=settings.GEMINI_MODEL,
@@ -176,6 +191,80 @@ class SalesAgent:
             ],
         )
 
+    def _build_tools_metadata(self) -> list[dict[str, Any]]:
+        return [
+            {
+                "name": "add_to_cart",
+                "description": "Use this tool only when the user explicitly wants to add a product to the cart with quantity and price. Do not use this tool to inspect or show the cart.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "session_id": {"type": "string"},
+                        "product_name": {"type": "string"},
+                        "quantity": {"type": "integer"},
+                        "price": {"type": "number"},
+                    },
+                    "required": ["session_id", "product_name", "quantity", "price"],
+                },
+            },
+            {
+                "name": "remove_from_cart",
+                "description": "Use this tool when the user explicitly wants to remove a product from the cart.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "session_id": {"type": "string"},
+                        "product_name": {"type": "string"},
+                    },
+                    "required": ["session_id", "product_name"],
+                },
+            },
+            {
+                "name": "clear_cart",
+                "description": "Use this tool when the user wants to empty the entire cart.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "session_id": {"type": "string"},
+                    },
+                    "required": ["session_id"],
+                },
+            },
+            {
+                "name": "show_cart",
+                "description": "Use this tool to inspect the cart contents and return the list of items and total price.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "session_id": {"type": "string"},
+                    },
+                    "required": ["session_id"],
+                },
+            },
+            {
+                "name": "checkout",
+                "description": "Use this tool when the user wants to complete the purchase and receive a PIX payment code.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "session_id": {"type": "string"},
+                    },
+                    "required": ["session_id"],
+                },
+            },
+            {
+                "name": "get_order_status",
+                "description": "Use this tool to retrieve the current status of an order by its ID.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "order_id": {"type": "string"},
+                    },
+                    "required": ["order_id"],
+                },
+            },
+        ]
+
     async def _call_ollama(
         self,
         messages: list[dict[str, Any]],
@@ -187,10 +276,13 @@ class SalesAgent:
                 "messages": messages,
                 "stream": False,
             }
+            # include temperature when configured
+            if getattr(settings, "OLLAMA_TEMPERATURE", None) is not None:
+                payload["temperature"] = settings.OLLAMA_TEMPERATURE
             if tools_metadata:
                 payload["tools"] = tools_metadata
                 logger.debug(f"Ollama tools_metadata: {tools_metadata}")
-            
+
             response = await client.post(
                 f"{settings.OLLAMA_BASE_URL}/api/chat",
                 json=payload,
@@ -277,14 +369,94 @@ class SalesAgent:
             if not name and len(tools_metadata) == 1:
                 name = tools_metadata[0]["name"]
 
+            arguments = function.get("arguments", {}) or {}
+            if name == "show_cart" and any(
+                key in arguments for key in {"product_name", "quantity", "price"}
+            ):
+                name = "add_to_cart"
+            if isinstance(arguments, str):
+                try:
+                    arguments = json.loads(arguments)
+                except json.JSONDecodeError:
+                    arguments = {}
+            elif isinstance(arguments, list) and arguments and isinstance(arguments[0], dict):
+                arguments = arguments[0]
+
             function["name"] = name
-            function["arguments"] = self._normalize_tool_arguments(
-                function.get("arguments", {}) or {}
-            )
+            function["arguments"] = self._normalize_tool_arguments(arguments)
             tool_call["function"] = function
             normalized_calls.append(tool_call)
 
         message_obj["tool_calls"] = normalized_calls
+        return message_obj
+
+    async def _process_tool_calls(
+        self,
+        initial_message_obj: dict[str, Any],
+        session: Any,
+        session_id: str,
+        original_message: str,
+        tools_metadata: list[dict[str, Any]],
+        trace: Any,
+    ) -> dict[str, Any]:
+        message_obj = initial_message_obj
+        if not isinstance(message_obj, dict) or "tool_calls" not in message_obj:
+            return message_obj
+
+        session.history.append({"role": "user", "content": original_message})
+        max_iterations = 3
+
+        for _ in range(max_iterations):
+            tool_calls = message_obj.get("tool_calls")
+            if not isinstance(tool_calls, list) or not tool_calls:
+                break
+
+            for tool_call in tool_calls:
+                function = tool_call.get("function", {}) or {}
+                func_name = function.get("name", "").strip()
+                if not func_name:
+                    logger.warning(f"Empty tool name received: {tool_call}")
+                    continue
+
+                args = function.get("arguments", {})
+                if "session_id" not in args and func_name != "get_order_status":
+                    args["session_id"] = session_id
+
+                if not hasattr(SalesService, func_name):
+                    logger.error(f"Tool {func_name} not found in SalesService")
+                    continue
+
+                tool_func = getattr(SalesService, func_name)
+                logger.info(f"ADK Agent ({settings.LLM_PROVIDER}) calling tool: {func_name}")
+
+                tool_span = None
+                if trace:
+                    tool_span = trace.span(name=f"tool-call-{func_name}", input=args)
+
+                result = await tool_func(**args)
+
+                if tool_span:
+                    tool_span.end(output=str(result))
+
+                session.history.append(
+                    {"role": "tool", "content": str(result), "name": func_name}
+                )
+
+            session_messages = [
+                {"role": "system", "content": self._instruction},
+                *session.history,
+            ]
+            if settings.LLM_PROVIDER == "gemini":
+                message_obj = await self._call_gemini(session_messages, tools_metadata)
+            else:
+                message_obj = await self._call_ollama(session_messages, tools_metadata)
+
+            message_obj = self._normalize_tool_calls(message_obj, tools_metadata)
+            logger.debug(f"Agent received tool-loop message_obj: {message_obj}")
+
+            if not message_obj.get("tool_calls"):
+                break
+
         return message_obj
 
     def _normalize_tool_arguments(self, arguments: dict[str, Any]) -> dict[str, Any]:
@@ -296,18 +468,27 @@ class SalesAgent:
             "description": "product_name",
             "item_id": "product_name",
             "item": "product_name",
+            "product": "product_name",
+            "name": "product_name",
+            "item_name": "product_name",
+            "produto_nome": "product_name",
             "product_id": "product_name",
             "nome_produto": "product_name",
             "product_name": "product_name",
             "quantidade": "quantity",
+            "qtd": "quantity",
             "quantity": "quantity",
             "preco": "price",
+            "preço": "price",
             "price": "price",
             "valor": "price",
+            "valor_unitario": "price",
             "carrinho": "session_id",
             "carrinho_id": "session_id",
             "cart_id": "session_id",
             "session_id": "session_id",
+            "user_id": "session_id",
+            "usuario_id": "session_id",
             "pedido_id": "order_id",
             "order_id": "order_id",
             "id": "order_id",
@@ -350,7 +531,10 @@ class SalesAgent:
         _ = tools_metadata
         if genai_client is None:
             raise RuntimeError("Gemini client is not available")
-        config = types.GenerateContentConfig(tools=cast(Any, _build_gemini_tools()))
+        gen_kwargs: dict[str, Any] = {"tools": cast(Any, _build_gemini_tools())}
+        if getattr(settings, "GEMINI_TEMPERATURE", None) is not None:
+            gen_kwargs["temperature"] = settings.GEMINI_TEMPERATURE
+        config = types.GenerateContentConfig(**gen_kwargs)
         response = await genai_client.aio.models.generate_content(
             model=settings.GEMINI_MODEL,
             contents=messages,
@@ -387,18 +571,7 @@ class SalesAgent:
             logger.debug(f"Langfuse trace skipped: {error}")
 
         try:
-            tools_metadata: list[dict[str, Any]] = []
-            for tool in self.agent.tools:
-                name = getattr(tool, "name", tool.__name__)
-                description = getattr(tool, "description", tool.__doc__ or "")
-                parameters = getattr(tool, "parameters", {})
-                tools_metadata.append(
-                    {
-                        "name": name,
-                        "description": description,
-                        "parameters": parameters,
-                    }
-                )
+            tools_metadata = self._tools_metadata
             logger.debug(f"Tools metadata for {settings.LLM_PROVIDER}: {tools_metadata}")
 
             span = None
@@ -408,7 +581,11 @@ class SalesAgent:
                     input={"provider": settings.LLM_PROVIDER, "message": message},
                 )
 
-            current_messages = session.history + [{"role": "user", "content": message}]
+            current_messages = [
+                {"role": "system", "content": self._instruction},
+                *session.history,
+                {"role": "user", "content": message},
+            ]
 
             generation = None
             if trace:
@@ -428,78 +605,19 @@ class SalesAgent:
             if generation:
                 generation.end(output=message_obj)
 
-            content = ""  # Initialize to avoid UnboundLocalError
+            content = ""
             if "tool_calls" in message_obj:
-                for tool_call in message_obj["tool_calls"]:
-                    func_name = tool_call.get("function", {}).get("name", "").strip()
-                    
-                    if not func_name:
-                        logger.warning(f"Empty tool name received: {tool_call}")
-                        continue
-                    
-                    args = tool_call.get("function", {}).get("arguments", {})
-
-                    logger.info(
-                        f"ADK Agent ({settings.LLM_PROVIDER}) calling tool: {func_name}"
-                    )
-
-                    tool_span = None
-                    if trace:
-                        tool_span = trace.span(
-                            name=f"tool-call-{func_name}",
-                            input=args,
-                        )
-
-                    if not hasattr(SalesService, func_name):
-                        logger.error(f"Tool {func_name} not found in SalesService")
-                        if tool_span:
-                            tool_span.end(output=f"Tool {func_name} not found")
-                        continue
-                    
-                    tool_func = getattr(SalesService, func_name)
-                    if "session_id" not in args:
-                        args["session_id"] = session_id
-
-                    result = await tool_func(**args)
-
-                    if tool_span:
-                        tool_span.end(output=str(result))
-
-                    session.history.append({"role": "user", "content": message})
-                    session.history.append(
-                        {
-                            "role": "tool",
-                            "content": str(result),
-                            "name": func_name,
-                        }
-                    )
-
-                    final_generation = None
-                    if trace:
-                        final_generation = trace.generation(
-                            name=f"llm-call-final-{settings.LLM_PROVIDER}",
-                            model=settings.GEMINI_MODEL if settings.LLM_PROVIDER == "gemini" else settings.OLLAMA_MODEL,
-                            input=session.history,
-                        )
-
-                    if settings.LLM_PROVIDER == "gemini":
-                        final_res = await self._call_gemini(
-                            session.history, tools_metadata
-                        )
-                    else:
-                        final_res = await self._call_ollama(session.history, [])
-
-                    logger.debug(f"Agent received final_res: {final_res}")
-                    if final_generation:
-                        final_generation.end(output=final_res)
-
-                    content = final_res.get("content", "Action completed successfully.")
-                    if not content:
-                        logger.warning(
-                            "Final agent response is empty",
-                            final_res=final_res,
-                            session_history=session.history,
-                        )
+                message_obj = await self._process_tool_calls(
+                    message_obj,
+                    session,
+                    session_id,
+                    message,
+                    tools_metadata,
+                    trace,
+                )
+                content = message_obj.get("content", "")
+                if not content:
+                    content = "Action completed successfully."
             else:
                 content = message_obj.get("content", "")
                 session.history.append({"role": "user", "content": message})
