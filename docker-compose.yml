@@ -66,7 +66,7 @@ services:
       - "5432:5432"
 
   langfuse:
-    image: langfuse/langfuse:2
+    image: langfuse/langfuse:latest
     container_name: langfuse
     ports:
       - "3000:3000"

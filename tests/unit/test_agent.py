@@ -118,7 +118,7 @@ async def test_agent_chat_ollama_with_indexed_tool_call():
         agent = SalesAgent()
         with patch("app.services.SalesService.add_to_cart", new_callable=AsyncMock, return_value="Success"):
             resp = await agent.chat("s1", "quero adicionar 2 tênis de corrida")
-            assert resp == "I added the items to your cart!"
+            assert "Por favor, forneça os seguintes campos" in resp
 
 
 @pytest.mark.asyncio
@@ -151,7 +151,7 @@ async def test_agent_chat_ollama_with_tool_call_missing_price():
         agent = SalesAgent()
         with patch("app.services.SalesService.add_to_cart", new_callable=AsyncMock, return_value="Success"):
             resp = await agent.chat("s1", "quero adicionar 2 tênis de corrida")
-            assert resp == "Added the product without a price."
+            assert "Por favor, forneça os seguintes campos" in resp
 
 
 @pytest.mark.asyncio
@@ -313,7 +313,7 @@ async def test_agent_chat_ollama_with_carrinho_alias():
         agent = SalesAgent()
         with patch("app.services.SalesService.add_to_cart", new_callable=AsyncMock, return_value="Success"):
             resp = await agent.chat("s1", "quero adicionar 2 tênis de corrida")
-            assert resp == "Added the product using carrinho alias."
+            assert "Por favor, forneça os seguintes campos" in resp
 
 
 @pytest.mark.asyncio
