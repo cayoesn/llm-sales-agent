@@ -45,7 +45,7 @@ async def test_agent_integration_with_service_and_repo():
     # 2. Mock Ollama returning the final summary
     mock_res_summary = MagicMock()
     mock_res_summary.json.return_value = {
-        "message": {"content": "Pronto! Adicionei 2 Tênis Nike ao seu carrinho."}
+        "message": {"content": "Done! I added 2 Nike sneakers to your cart."}
     }
 
     with patch(
@@ -56,8 +56,8 @@ async def test_agent_integration_with_service_and_repo():
         response = await agent.chat(session_id, "quero 2 tênis nike de 299.9")
 
         # Verify the result from LLM summary
-        assert "Pronto!" in response
-        assert "Adicionei" in response
+        assert "Done!" in response
+        assert "added 2 Nike sneakers" in response
 
         # VERIFY INTEGRATION: Check if the product was ACTUALLY added to the repository
         cart = await SalesService.get_or_create_cart(session_id)
@@ -86,7 +86,7 @@ async def test_agent_checkout_integration():
 
     mock_res_summary = MagicMock()
     mock_res_summary.json.return_value = {
-        "message": {"content": "Pedido finalizado! Aqui está seu PIX."}
+        "message": {"content": "Order completed! Here is your PIX code."}
     }
 
     with patch(

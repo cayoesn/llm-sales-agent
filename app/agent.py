@@ -9,7 +9,7 @@ from app.config import settings
 from app.services import SalesService
 
 try:
-    from google.adk import Agent
+    from google.adk.agents import Agent
 except ImportError:  # pragma: no cover - fallback for lean runtime and tests
 
     class Agent:  # type: ignore[no-redef]
@@ -61,7 +61,7 @@ def _build_gemini_tools() -> list[types.Tool]:
             function_declarations=[
                 _tool_schema(
                     "add_to_cart",
-                    "Adiciona um produto ao carrinho.",
+                    "Adds a product to the cart.",
                     {
                         "type": "object",
                         "properties": {
@@ -75,7 +75,7 @@ def _build_gemini_tools() -> list[types.Tool]:
                 ),
                 _tool_schema(
                     "remove_from_cart",
-                    "Remove um produto do carrinho.",
+                    "Removes a product from the cart.",
                     {
                         "type": "object",
                         "properties": {
@@ -87,7 +87,7 @@ def _build_gemini_tools() -> list[types.Tool]:
                 ),
                 _tool_schema(
                     "clear_cart",
-                    "Limpa o carrinho do usuário.",
+                    "Clears the user's cart.",
                     {
                         "type": "object",
                         "properties": {
@@ -98,7 +98,7 @@ def _build_gemini_tools() -> list[types.Tool]:
                 ),
                 _tool_schema(
                     "checkout",
-                    "Finaliza a compra e gera o PIX.",
+                    "Completes the purchase and generates the PIX code.",
                     {
                         "type": "object",
                         "properties": {
@@ -109,7 +109,7 @@ def _build_gemini_tools() -> list[types.Tool]:
                 ),
                 _tool_schema(
                     "get_order_status",
-                    "Consulta o status de um pedido.",
+                    "Checks the status of an order.",
                     {
                         "type": "object",
                         "properties": {
@@ -131,25 +131,27 @@ class SalesAgent:
     def __init__(self) -> None:
         instruction = "\n".join(
             [
-                "Você é o assistente virtual da LuizaLabs.",
-                "Sua missão é ajudar clientes com o carrinho de compras.",
+                "You are the virtual sales assistant for LuizaLabs.",
+                "Your mission is to help customers with their shopping cart.",
                 "",
-                "FLUXO DE TRABALHO:",
-                "1. Entenda o que o usuário quer.",
-                "2. Chame a ferramenta (tool) apropriada se necessário.",
-                "3. Responda educadamente em Português confirmando a ação.",
+                "WORKFLOW:",
+                "1. Understand what the user wants.",
+                "2. Call the appropriate tool when needed.",
+                "3. Respond politely in English confirming the action.",
                 "",
-                "REGRAS:",
-                "- Se o usuário quiser comprar/adicionar algo, use 'add_to_cart'.",
-                "- Se quiser remover, use 'remove_from_cart'.",
-                "- Para ver status de um pedido, peça o ID se não informado.",
-                "- Use 'get_order_status' para consultar o pedido.",
-                "- Sempre gere o código PIX no checkout.",
+                "RULES:",
+                "- If the user wants to buy or add something, use 'add_to_cart'.",
+                "- If the user wants to remove something, use 'remove_from_cart'.",
+                "- To check an order status, ask for the order ID if it is missing.",
+                "- Use 'get_order_status' to look up the order.",
+                "- Always generate the PIX code during checkout.",
             ]
         )
 
         self.agent = Agent(
             name="SalesAssistant",
+            model=settings.GEMINI_MODEL,
+            description="LuizaLabs sales assistant",
             instruction=instruction,
             tools=[
                 SalesService.add_to_cart,
@@ -283,7 +285,7 @@ class SalesAgent:
                     else:
                         final_res = await self._call_ollama(session.history, [])
 
-                    content = final_res.get("content", "Ação concluída com sucesso.")
+                    content = final_res.get("content", "Action completed successfully.")
             else:
                 content = message_obj.get("content", "")
                 session.history.append({"role": "user", "content": message})
@@ -297,4 +299,4 @@ class SalesAgent:
             logger.error(f"Error in {settings.LLM_PROVIDER} Agent: {error}")
             if trace:
                 trace.update(status_message=str(error))
-            return "Desculpe, tive um problema ao processar seu pedido."
+            return "Sorry, there was a problem processing your request."

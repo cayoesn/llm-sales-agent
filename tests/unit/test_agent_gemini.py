@@ -17,7 +17,7 @@ async def test_agent_chat_gemini_no_tools():
     mock_candidate.content.parts = [MagicMock()]
     mock_candidate.content.parts[0].function_call = None
     mock_response.candidates = [mock_candidate]
-    mock_response.text = "Resposta do Gemini"
+    mock_response.text = "Gemini response"
 
     with patch("app.agent.settings.LLM_PROVIDER", "gemini"):
         with patch(
@@ -26,7 +26,7 @@ async def test_agent_chat_gemini_no_tools():
         ):
             agent = SalesAgent()
             resp = await agent.chat("s1", "oi")
-            assert resp == "Resposta do Gemini"
+            assert resp == "Gemini response"
 
 
 @pytest.mark.asyncio
@@ -42,7 +42,7 @@ async def test_agent_chat_gemini_with_tools():
     mock_res1.candidates = [MagicMock(content=MagicMock(parts=[mock_part1]))]
 
     mock_res2 = MagicMock()
-    mock_res2.text = "Adicionado via Gemini!"
+    mock_res2.text = "Added via Gemini!"
     mock_res2.candidates = [
         MagicMock(content=MagicMock(parts=[MagicMock(function_call=None)]))
     ]
@@ -55,4 +55,4 @@ async def test_agent_chat_gemini_with_tools():
             with patch("app.services.SalesService.add_to_cart", return_value="Sucesso"):
                 agent = SalesAgent()
                 resp = await agent.chat("s1", "comprar tênis")
-                assert resp == "Adicionado via Gemini!"
+                assert resp == "Added via Gemini!"

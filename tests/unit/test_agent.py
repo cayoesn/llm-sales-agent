@@ -15,9 +15,7 @@ def agent():
 async def test_agent_chat_ollama_no_tools():
     # Mocking Ollama call
     mock_response = MagicMock()
-    mock_response.json.return_value = {
-        "message": {"content": "Olá! Como posso ajudar?"}
-    }
+    mock_response.json.return_value = {"message": {"content": "Hello! How can I help?"}}
     mock_response.raise_for_status = MagicMock()
 
     with patch("httpx.AsyncClient.post", return_value=mock_response):
@@ -25,10 +23,10 @@ async def test_agent_chat_ollama_no_tools():
         with patch("app.services.SalesService.get_session", return_value=session):
             agent = SalesAgent()
             resp = await agent.chat("s1", "oi")
-            assert resp == "Olá! Como posso ajudar?"
+            assert resp == "Hello! How can I help?"
             assert session.history[-2:] == [
                 {"role": "user", "content": "oi"},
-                {"role": "assistant", "content": "Olá! Como posso ajudar?"},
+                {"role": "assistant", "content": "Hello! How can I help?"},
             ]
 
 
@@ -56,14 +54,14 @@ async def test_agent_chat_ollama_with_tools():
     # 2nd call: summary
     mock_res2 = MagicMock()
     mock_res2.json.return_value = {
-        "message": {"content": "Adicionei o tênis ao seu carrinho!"}
+        "message": {"content": "I added the sneakers to your cart!"}
     }
 
     with patch("httpx.AsyncClient.post", side_effect=[mock_res1, mock_res2]):
-        with patch("app.services.SalesService.add_to_cart", return_value="Sucesso"):
+        with patch("app.services.SalesService.add_to_cart", return_value="Success"):
             agent = SalesAgent()
             resp = await agent.chat("s1", "quero um tênis")
-            assert resp == "Adicionei o tênis ao seu carrinho!"
+            assert resp == "I added the sneakers to your cart!"
 
 
 @pytest.mark.asyncio
@@ -71,4 +69,4 @@ async def test_agent_chat_error():
     with patch("httpx.AsyncClient.post", side_effect=Exception("Network error")):
         agent = SalesAgent()
         resp = await agent.chat("s1", "oi")
-        assert resp == "Desculpe, tive um problema ao processar seu pedido."
+        assert resp == "Sorry, there was a problem processing your request."

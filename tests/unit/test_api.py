@@ -21,7 +21,7 @@ async def test_health_endpoint():
 @pytest.mark.asyncio
 async def test_chat_endpoint_structure():
     fake_agent = MagicMock()
-    fake_agent.chat = AsyncMock(return_value="Olá! Como posso ajudar?")
+    fake_agent.chat = AsyncMock(return_value="Hello! How can I help?")
     payload = {"session_id": "test_s", "message": "oi"}
 
     with patch("app.main.get_agent", return_value=fake_agent):
@@ -33,7 +33,7 @@ async def test_chat_endpoint_structure():
     assert response.status_code == 200
     assert response.json() == {
         "session_id": "test_s",
-        "response": "Olá! Como posso ajudar?",
+        "response": "Hello! How can I help?",
     }
     fake_agent.chat.assert_awaited_once_with("test_s", "oi")
 

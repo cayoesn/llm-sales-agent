@@ -39,7 +39,7 @@ async def test_full_api_to_repository_flow():
             }
         ]
     }
-    mock_res_summary = {"content": "Mesa adicionada!"}
+    mock_res_summary = {"content": "Table added!"}
 
     with patch.object(
         SalesAgent, "_call_ollama", side_effect=[mock_res_tool, mock_res_summary]
@@ -51,7 +51,7 @@ async def test_full_api_to_repository_flow():
 
         assert response.status_code == 200
         data = response.json()
-        assert data["response"] == "Mesa adicionada!"
+        assert data["response"] == "Table added!"
 
         # Verify persistence integration
         assert "api_integration_test" in repo.carts
