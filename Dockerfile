@@ -18,6 +18,7 @@ RUN useradd --create-home --uid 10001 appuser
 COPY --from=builder /install /usr/local
 COPY --chown=appuser:appuser app ./app
 
+RUN mkdir -p /app/logs && chown -R appuser:appuser /app/logs
 USER appuser
 
 EXPOSE 8000
@@ -30,9 +31,10 @@ CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
 FROM base AS test
 
 COPY requirements-dev.txt requirements.txt ./
-RUN pip install --upgrade pip && pip install -r requirements-dev.txt
+RUN pip install --upgrade pip && pip install -r requirements-dev.txt && pip install -r requirements.txt
 
 COPY app ./app
+RUN mkdir -p /app/logs && chown -R appuser:appuser /app/logs
 COPY tests ./tests
 
 ENV COVERAGE_FILE=/app/tests/.coverage

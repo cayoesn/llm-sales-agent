@@ -3,7 +3,123 @@ services:
     build:
       context: .
       target: runtime
+    container_name: api
     env_file:
       - .env
     ports:
       - "8000:8000"
+    volumes:
+      - app-logs:/app/logs
+    depends_on:
+      - redis
+      - ollama
+
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+
+  ollama-pull-model:
+    build:
+      context: ./ollama-pull-model
+      dockerfile: Dockerfile
+    container_name: ollama-pull-model
+    depends_on:
+      - ollama
+    entrypoint: [ "/bin/sh", "-c" ]
+    command: >
+      "
+      echo 'Waiting for Ollama to start...';
+      until curl -s http://ollama:11434/api/tags > /dev/null; do
+        sleep 2;
+      done;
+      echo 'Ollama started! Pulling model llama7b...';
+      curl -X POST http://ollama:11434/api/pull -H \"Content-Type: application/json\" -d '{\"model\":\"llama7b\"}';
+      echo 'Model pull request sent!';
+      "
+
+  langfuse-db:
+    image: postgres:16-alpine
+    container_name: langfuse-db
+    environment:
+      - POSTGRES_DB=langfuse
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+    volumes:
+      - langfuse-db-data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  langfuse:
+    image: langfuse/langfuse:2
+    container_name: langfuse
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@langfuse-db:5432/langfuse
+      - NEXTAUTH_SECRET=mysecretnextauthsecret
+      - SALT=mysaltsalt
+      - NEXTAUTH_URL=http://localhost:3000
+      - TELEMETRY_ENABLED=false
+    depends_on:
+      - langfuse-db
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./docker/prometheus.yml:/etc/prometheus/prometheus.yml
+    depends_on:
+      - api
+
+  loki:
+    image: grafana/loki:2.9.2
+    container_name: loki
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./docker/loki-config.yaml:/etc/loki/local-config.yaml
+    command: -config.file=/etc/loki/local-config.yaml
+
+  promtail:
+    image: grafana/promtail:2.9.2
+    container_name: promtail
+    volumes:
+      - ./docker/promtail.yml:/etc/promtail/config.yml
+      - app-logs:/var/log/app
+    command: -config.file=/etc/promtail/config.yml
+    depends_on:
+      - loki
+      - api
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - "3001:3000"
+    volumes:
+      - ./docker/grafana/provisioning:/etc/grafana/provisioning
+    depends_on:
+      - loki
+      - prometheus
+
+volumes:
+  redis-data:
+  ollama-data:
+  langfuse-db-data:
+  app-logs:

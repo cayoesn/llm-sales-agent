@@ -23,6 +23,7 @@ class SalesService:
         for item in cart.items:
             if item.product_id == product_id:
                 item.quantity += quantity
+                repo.carts[session_id] = cart
                 return f"Updated {product_name} to {item.quantity} units."
 
         cart.items.append(
@@ -30,6 +31,7 @@ class SalesService:
                 product_id=product_id, name=product_name, quantity=quantity, price=price
             )
         )
+        repo.carts[session_id] = cart
         return f"Added {quantity}x {product_name} to cart."
 
     @staticmethod
@@ -37,6 +39,7 @@ class SalesService:
         cart = await SalesService.get_or_create_cart(session_id)
         product_id = product_name.lower().replace(" ", "_")
         cart.items = [item for item in cart.items if item.product_id != product_id]
+        repo.carts[session_id] = cart
         return f"Removed {product_name} from cart."
 
     @staticmethod

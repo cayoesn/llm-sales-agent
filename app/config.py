@@ -10,14 +10,17 @@ class Settings(BaseSettings):
     # LLM
     LLM_PROVIDER: str = "ollama"
     OLLAMA_BASE_URL: str = "http://ollama:11434"
-    OLLAMA_MODEL: str = "llama3.1"
+    OLLAMA_MODEL: str = "llama7b"
     GEMINI_API_KEY: str | None = None
     GEMINI_MODEL: str = "gemini-1.5-flash"
 
     # Langfuse
-    LANGFUSE_PUBLIC_KEY: str = ""
-    LANGFUSE_SECRET_KEY: str = ""
+    LANGFUSE_PUBLIC_KEY: str = "pk-lf-demo"
+    LANGFUSE_SECRET_KEY: str = "sk-lf-demo"
     LANGFUSE_HOST: str = "http://langfuse:3000"
+
+    # Redis
+    REDIS_URL: str | None = None
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

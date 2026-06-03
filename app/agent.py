@@ -6,6 +6,7 @@ from google.genai import types
 from loguru import logger
 
 from app.config import settings
+from app.repository import repo
 from app.services import SalesService
 
 try:
@@ -249,10 +250,21 @@ class SalesAgent:
 
             current_messages = session.history + [{"role": "user", "content": message}]
 
+            generation = None
+            if trace:
+                generation = trace.generation(
+                    name=f"llm-call-{settings.LLM_PROVIDER}",
+                    model=settings.GEMINI_MODEL if settings.LLM_PROVIDER == "gemini" else settings.OLLAMA_MODEL,
+                    input=current_messages,
+                )
+
             if settings.LLM_PROVIDER == "gemini":
                 message_obj = await self._call_gemini(current_messages, tools_metadata)
             else:
                 message_obj = await self._call_ollama(current_messages, tools_metadata)
+
+            if generation:
+                generation.end(output=message_obj)
 
             if "tool_calls" in message_obj:
                 for tool_call in message_obj["tool_calls"]:
@@ -263,11 +275,21 @@ class SalesAgent:
                         f"ADK Agent ({settings.LLM_PROVIDER}) calling tool: {func_name}"
                     )
 
+                    tool_span = None
+                    if trace:
+                        tool_span = trace.span(
+                            name=f"tool-call-{func_name}",
+                            input=args,
+                        )
+
                     tool_func = getattr(SalesService, func_name)
                     if "session_id" not in args:
                         args["session_id"] = session_id
 
                     result = await tool_func(**args)
+
+                    if tool_span:
+                        tool_span.end(output=str(result))
 
                     session.history.append({"role": "user", "content": message})
                     session.history.append(
@@ -278,6 +300,14 @@ class SalesAgent:
                         }
                     )
 
+                    final_generation = None
+                    if trace:
+                        final_generation = trace.generation(
+                            name=f"llm-call-final-{settings.LLM_PROVIDER}",
+                            model=settings.GEMINI_MODEL if settings.LLM_PROVIDER == "gemini" else settings.OLLAMA_MODEL,
+                            input=session.history,
+                        )
+
                     if settings.LLM_PROVIDER == "gemini":
                         final_res = await self._call_gemini(
                             session.history, tools_metadata
@@ -285,12 +315,16 @@ class SalesAgent:
                     else:
                         final_res = await self._call_ollama(session.history, [])
 
+                    if final_generation:
+                        final_generation.end(output=final_res)
+
                     content = final_res.get("content", "Action completed successfully.")
             else:
                 content = message_obj.get("content", "")
                 session.history.append({"role": "user", "content": message})
 
             session.history.append({"role": "assistant", "content": content})
+            repo.sessions[session_id] = session
             if span:
                 span.end(output=content)
             return content

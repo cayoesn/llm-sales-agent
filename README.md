@@ -40,9 +40,29 @@ flowchart LR
 - `tests/unit/` validates isolated behavior.
 - `tests/integration/` validates API and service flows end to end.
 
-## Challenge requirements covered
+## Services Overview
 
-The PDF in the repository root asks for:
+The `docker-compose.yml` defines the following services:
+
+- **api**: FastAPI application exposing the chat endpoint.
+- **redis**: In‑memory data store used for session and cache handling.
+- **ollama**: Ollama server that hosts the LLM models.
+- **ollama-pull-model**: Helper container that waits for Ollama to start and pulls the required model (`llama7b`).
+- **langfuse-db**: PostgreSQL database for Langfuse telemetry data.
+- **langfuse**: Langfuse service for observability of LLM calls (can be disabled via `TELEMETRY_ENABLED=false`).
+- **prometheus**: Metrics collector scraping FastAPI, Ollama and other containers.
+- **loki**: Log aggregation service.
+- **promtail**: Agent that ships container logs to Loki.
+- **grafana**: Dashboard for visualizing Prometheus metrics and Loki logs.
+
+All services share persistent volumes defined at the bottom of the compose file:
+
+- `redis-data` – Redis data persistence.
+- `ollama-data` – Ollama model cache.
+- `langfuse-db-data` – Langfuse PostgreSQL data.
+- `app-logs` – Shared log directory mounted into `api` and `promtail`.
+
+These services can be started with `docker compose up --build` and stopped with `docker compose down -v`.
 
 - a conversational REST API built with FastAPI;
 - integration with Google ADK;
