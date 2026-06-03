@@ -14,7 +14,7 @@ class SalesService:
 
     @staticmethod
     async def add_to_cart(
-        session_id: str, product_name: str, quantity: int, price: float
+        session_id: str, product_name: str, quantity: int, price: float = 0.0
     ) -> str:
         cart = await SalesService.get_or_create_cart(session_id)
         product_id = product_name.lower().replace(" ", "_")
@@ -47,6 +47,24 @@ class SalesService:
         if session_id in repo.carts:
             del repo.carts[session_id]
         return "Cart cleared."
+
+    @staticmethod
+    async def show_cart(session_id: str) -> str:
+        cart = await SalesService.get_or_create_cart(session_id)
+        if not cart.items:
+            return "Your cart is empty."
+
+        lines = []
+        total = 0.0
+        for item in cart.items:
+            item_total = item.price * item.quantity
+            total += item_total
+            lines.append(
+                f"{item.quantity}x {item.name} - R$ {item.price:.2f} each - Total R$ {item_total:.2f}"
+            )
+
+        lines.append(f"Cart total: R$ {total:.2f}")
+        return "\n".join(lines)
 
     @staticmethod
     async def checkout(session_id: str) -> str:

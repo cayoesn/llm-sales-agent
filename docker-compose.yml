@@ -44,9 +44,13 @@ services:
       until curl -s http://ollama:11434/api/tags > /dev/null; do
         sleep 2;
       done;
-      echo 'Ollama started! Pulling model llama7b...';
-      curl -X POST http://ollama:11434/api/pull -H \"Content-Type: application/json\" -d '{\"model\":\"llama7b\"}';
-      echo 'Model pull request sent!';
+      echo 'Ollama started! Pulling model llama3.1...';
+      curl -X POST http://ollama:11434/api/pull -H \"Content-Type: application/json\" -d '{\"model\":\"llama3.1\"}';
+      echo 'Waiting for model to download (this may take a few minutes)...';
+      until curl -s http://ollama:11434/api/tags | grep -q llama3.1; do
+        sleep 5;
+      done;
+      echo 'Model llama3.1 is ready!';
       "
 
   langfuse-db:

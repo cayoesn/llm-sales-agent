@@ -109,6 +109,17 @@ def _build_gemini_tools() -> list[types.Tool]:
                     },
                 ),
                 _tool_schema(
+                    "show_cart",
+                    "Shows the current cart contents.",
+                    {
+                        "type": "object",
+                        "properties": {
+                            "session_id": {"type": "string"},
+                        },
+                        "required": ["session_id"],
+                    },
+                ),
+                _tool_schema(
                     "get_order_status",
                     "Checks the status of an order.",
                     {
@@ -143,6 +154,7 @@ class SalesAgent:
                 "RULES:",
                 "- If the user wants to buy or add something, use 'add_to_cart'.",
                 "- If the user wants to remove something, use 'remove_from_cart'.",
+                "- If the user wants to see the cart contents, use 'show_cart'.",
                 "- To check an order status, ask for the order ID if it is missing.",
                 "- Use 'get_order_status' to look up the order.",
                 "- Always generate the PIX code during checkout.",
@@ -158,6 +170,7 @@ class SalesAgent:
                 SalesService.add_to_cart,
                 SalesService.remove_from_cart,
                 SalesService.clear_cart,
+                SalesService.show_cart,
                 SalesService.checkout,
                 SalesService.get_order_status,
             ],
@@ -173,15 +186,161 @@ class SalesAgent:
                 "model": settings.OLLAMA_MODEL,
                 "messages": messages,
                 "stream": False,
-                "tools": tools_metadata,
             }
+            if tools_metadata:
+                payload["tools"] = tools_metadata
+                logger.debug(f"Ollama tools_metadata: {tools_metadata}")
+            
             response = await client.post(
                 f"{settings.OLLAMA_BASE_URL}/api/chat",
                 json=payload,
                 timeout=60.0,
             )
             response.raise_for_status()
-            return response.json()["message"]
+            data = response.json()
+            logger.debug(f"Ollama request payload: {payload}")
+            logger.debug(f"Ollama response raw data: {data}")
+            message = self._parse_ollama_response(data)
+            logger.debug(f"Ollama parsed message: {message}")
+            if not message.get("content") and not message.get("tool_calls"):
+                logger.warning(
+                    f"Ollama response parsed to empty content. raw data={data} parsed={message}"
+                )
+            return message
+
+    def _parse_ollama_response(self, data: dict[str, Any]) -> dict[str, Any]:
+        if not isinstance(data, dict):
+            return {"content": str(data)}
+
+        message = data.get("message")
+        if message is None:
+            message = data.get("response") or data.get("output")
+
+        if message is None and isinstance(data.get("choices"), list):
+            first_choice = data["choices"][0] if data["choices"] else None
+            if isinstance(first_choice, dict):
+                message = first_choice.get("message") or first_choice.get("content") or first_choice.get("response")
+
+        if message is None:
+            output = data.get("output")
+            if isinstance(output, list) and output:
+                message = output[0]
+
+        if isinstance(message, dict):
+            content = message.get("content")
+            tool_calls = message.get("tool_calls")
+            if isinstance(content, list):
+                flattened = []
+                for part in content:
+                    if isinstance(part, dict):
+                        flattened.append(str(part.get("text", "")))
+                    elif isinstance(part, str):
+                        flattened.append(part)
+                parsed = {"content": "".join(flattened).strip()}
+            elif content is not None:
+                parsed = {"content": content}
+            else:
+                parsed = {"content": ""}
+
+            if tool_calls is not None:
+                parsed["tool_calls"] = tool_calls
+            return parsed
+
+        if isinstance(message, list) and message:
+            first_item = message[0]
+            if isinstance(first_item, dict) and "content" in first_item:
+                return {"content": first_item["content"]}
+            return {"content": str(first_item)}
+
+        return {"content": str(message) if message is not None else ""}
+
+    def _normalize_tool_calls(
+        self,
+        message_obj: dict[str, Any],
+        tools_metadata: list[dict[str, Any]],
+    ) -> dict[str, Any]:
+        if not isinstance(message_obj, dict) or "tool_calls" not in message_obj:
+            return message_obj
+
+        tool_calls = message_obj.get("tool_calls")
+        if not isinstance(tool_calls, list):
+            return message_obj
+
+        normalized_calls: list[dict[str, Any]] = []
+        for tool_call in tool_calls:
+            function = tool_call.get("function", {}) or {}
+            name = function.get("name") or ""
+            if not name and isinstance(function.get("index"), int):
+                index = function["index"]
+                if 0 <= index < len(tools_metadata):
+                    name = tools_metadata[index]["name"]
+            if not name and len(tools_metadata) == 1:
+                name = tools_metadata[0]["name"]
+
+            function["name"] = name
+            function["arguments"] = self._normalize_tool_arguments(
+                function.get("arguments", {}) or {}
+            )
+            tool_call["function"] = function
+            normalized_calls.append(tool_call)
+
+        message_obj["tool_calls"] = normalized_calls
+        return message_obj
+
+    def _normalize_tool_arguments(self, arguments: dict[str, Any]) -> dict[str, Any]:
+        normalized: dict[str, Any] = {}
+        alias_map: dict[str, str] = {
+            "produto": "product_name",
+            "produto_id": "product_name",
+            "descricao": "product_name",
+            "description": "product_name",
+            "item_id": "product_name",
+            "item": "product_name",
+            "product_id": "product_name",
+            "nome_produto": "product_name",
+            "product_name": "product_name",
+            "quantidade": "quantity",
+            "quantity": "quantity",
+            "preco": "price",
+            "price": "price",
+            "valor": "price",
+            "carrinho": "session_id",
+            "carrinho_id": "session_id",
+            "cart_id": "session_id",
+            "session_id": "session_id",
+            "pedido_id": "order_id",
+            "order_id": "order_id",
+            "id": "order_id",
+        }
+
+        for key, value in arguments.items():
+            normalized_key = alias_map.get(key, key)
+
+            if normalized_key == "product_name" and isinstance(value, str):
+                normalized[normalized_key] = value.replace("_", " ").strip()
+                continue
+
+            if normalized_key == "quantity":
+                try:
+                    normalized[normalized_key] = int(value)
+                    continue
+                except Exception:
+                    pass
+
+            if normalized_key == "price":
+                try:
+                    normalized[normalized_key] = float(value)
+                    continue
+                except Exception:
+                    pass
+
+            if normalized_key in {"session_id", "order_id"}:
+                normalized[normalized_key] = str(value)
+                continue
+
+            normalized[normalized_key] = value
+
+        return normalized
 
     async def _call_gemini(
         self,
@@ -240,6 +399,7 @@ class SalesAgent:
                         "parameters": parameters,
                     }
                 )
+            logger.debug(f"Tools metadata for {settings.LLM_PROVIDER}: {tools_metadata}")
 
             span = None
             if trace:
@@ -263,13 +423,21 @@ class SalesAgent:
             else:
                 message_obj = await self._call_ollama(current_messages, tools_metadata)
 
+            message_obj = self._normalize_tool_calls(message_obj, tools_metadata)
+            logger.debug(f"Agent received message_obj: {message_obj}")
             if generation:
                 generation.end(output=message_obj)
 
+            content = ""  # Initialize to avoid UnboundLocalError
             if "tool_calls" in message_obj:
                 for tool_call in message_obj["tool_calls"]:
-                    func_name = tool_call["function"]["name"]
-                    args = tool_call["function"]["arguments"]
+                    func_name = tool_call.get("function", {}).get("name", "").strip()
+                    
+                    if not func_name:
+                        logger.warning(f"Empty tool name received: {tool_call}")
+                        continue
+                    
+                    args = tool_call.get("function", {}).get("arguments", {})
 
                     logger.info(
                         f"ADK Agent ({settings.LLM_PROVIDER}) calling tool: {func_name}"
@@ -282,6 +450,12 @@ class SalesAgent:
                             input=args,
                         )
 
+                    if not hasattr(SalesService, func_name):
+                        logger.error(f"Tool {func_name} not found in SalesService")
+                        if tool_span:
+                            tool_span.end(output=f"Tool {func_name} not found")
+                        continue
+                    
                     tool_func = getattr(SalesService, func_name)
                     if "session_id" not in args:
                         args["session_id"] = session_id
@@ -315,10 +489,17 @@ class SalesAgent:
                     else:
                         final_res = await self._call_ollama(session.history, [])
 
+                    logger.debug(f"Agent received final_res: {final_res}")
                     if final_generation:
                         final_generation.end(output=final_res)
 
                     content = final_res.get("content", "Action completed successfully.")
+                    if not content:
+                        logger.warning(
+                            "Final agent response is empty",
+                            final_res=final_res,
+                            session_history=session.history,
+                        )
             else:
                 content = message_obj.get("content", "")
                 session.history.append({"role": "user", "content": message})

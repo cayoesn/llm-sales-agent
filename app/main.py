@@ -1,6 +1,7 @@
 from functools import lru_cache
 import sys
 
+import httpx
 from fastapi import FastAPI
 from pydantic import BaseModel
 from loguru import logger
@@ -54,6 +55,44 @@ class ChatResponse(BaseModel):
 @lru_cache(maxsize=1)
 def get_agent() -> SalesAgent:
     return SalesAgent()
+
+
+async def check_ollama_ready() -> bool:
+    """Check if Ollama is ready by verifying the model is available."""
+    if settings.LLM_PROVIDER != "ollama":
+        return True
+    
+    try:
+        async with httpx.AsyncClient(timeout=5) as client:
+            response = await client.get(
+                f"{settings.OLLAMA_BASE_URL}/api/tags"
+            )
+            if response.status_code == 200:
+                tags = response.json().get("models", [])
+                model_names = [m.get("name", "") for m in tags]
+                if any(settings.OLLAMA_MODEL in name for name in model_names):
+                    logger.info(f"Ollama model {settings.OLLAMA_MODEL} is ready")
+                    return True
+    except Exception as e:
+        logger.warning(f"Ollama not ready yet: {e}")
+    
+    return False
+
+
+@app.on_event("startup")
+async def startup_event():
+    """Verify LLM provider is ready on startup."""
+    if settings.LLM_PROVIDER == "ollama":
+        logger.info("Waiting for Ollama to be ready...")
+        max_retries = 60
+        for attempt in range(max_retries):
+            if await check_ollama_ready():
+                logger.info("Ollama is ready!")
+                break
+            logger.info(f"Attempt {attempt + 1}/{max_retries}: Ollama not ready yet, retrying in 2s...")
+            await __import__("asyncio").sleep(2)
+        else:
+            logger.warning("Ollama was not ready after 2 minutes. Proceeding anyway...")
 
 
 @app.post(f"{settings.API_V1_STR}/chat", response_model=ChatResponse)

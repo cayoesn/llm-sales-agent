@@ -54,6 +54,20 @@ async def test_clear_cart_without_existing_session():
 
 
 @pytest.mark.asyncio
+async def test_show_cart_empty():
+    resp = await SalesService.show_cart("s1")
+    assert resp == "Your cart is empty."
+
+
+@pytest.mark.asyncio
+async def test_show_cart_contents():
+    await SalesService.add_to_cart("s1", "Tênis", 2, 150.0)
+    resp = await SalesService.show_cart("s1")
+    assert "2x Tênis" in resp
+    assert "Cart total: R$ 300.00" in resp
+
+
+@pytest.mark.asyncio
 async def test_checkout_success():
     await SalesService.add_to_cart("s1", "Tênis", 2, 150.0)
     resp = await SalesService.checkout("s1")

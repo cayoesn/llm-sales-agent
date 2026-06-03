@@ -12,6 +12,7 @@ COPY requirements.txt .
 RUN pip install --upgrade pip && pip install --prefix=/install -r requirements.txt
 
 FROM base AS runtime
+RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
 
 RUN useradd --create-home --uid 10001 appuser
 

@@ -1,165 +1,151 @@
-# LuizaLabs Sales Assistant Challenge
+# Desafio LuizaLabs Sales Assistant
 
-FastAPI conversational sales API with session memory, cart operations, simulated checkout, order status lookup, Docker-based execution, and a test suite designed to run entirely in containers.
+API conversacional de vendas em FastAPI com memória de sessão, operações de carrinho, checkout simulado, consulta de status de pedido, execução via Docker e uma suíte de testes projetada para rodar totalmente em containers.
 
-## What this project does
+## O que este projeto faz
 
-- Exposes a single chat endpoint at `POST /api/v1/chat`.
-- Keeps conversation state by `session_id`.
-- Lets the agent manage a shopping cart through tool/function calls.
-- Simulates checkout with an order ID and PIX copy/paste code.
-- Returns only the assistant text in the API response payload.
-- Runs unit, integration, lint, and coverage checks inside Docker.
+- Expõe um único endpoint de chat em `POST /api/v1/chat`.
+- Mantém o estado da conversa por `session_id`.
+- Permite que o agente gerencie o carrinho de compras por meio de chamadas de ferramentas/funções.
+- Simula o checkout com um ID de pedido e código PIX para copiar e colar.
+- Retorna apenas o texto do assistente no payload da resposta da API.
+- Executa testes unitários, de integração, lint e coverage dentro do Docker.
 
-## Architecture
+## Arquitetura
 
 ```mermaid
 flowchart LR
-    Client[Client / API Consumer] --> API[FastAPI app]
-    API --> MW[Logging middleware]
-    API --> Route[POST /api/v1/chat]
-    Route --> Agent[SalesAgent]
-    Agent --> Provider[LLM provider<br/>Ollama or Gemini]
-    Agent --> Tools[Tool calling layer]
-    Tools --> Service[SalesService]
-    Service --> Repo[In-memory repository]
-    Service --> Models[Pydantic models]
-    Agent --> Telemetry[Optional Langfuse]
-    Service --> Checkout[Order + PIX simulation]
+    Cliente[Cliente / Consumidor] --> API[Aplicação FastAPI]
+    API --> MW[Middleware de logging]
+    API --> Rota[POST /api/v1/chat]
+    Rota --> Agente[SalesAgent]
+    Agente --> Provedor[Provedor LLM<br/>Ollama ou Gemini]
+    Agente --> Ferramentas[Camada de ferramentas]
+    Ferramentas --> Serviço[SalesService]
+    Serviço --> Repo[Repositório em memória]
+    Serviço --> Modelos[Modelos Pydantic]
+    Agente --> Telemetria[Langfuse opcional]
+    Serviço --> Checkout[Simulação de pedido + PIX]
     Checkout --> Repo
 ```
 
-### Component map
+### Mapa de componentes
 
-- `app/main.py` wires the FastAPI app and routes.
-- `app/api/` contains request/response schemas, routes, and middleware.
-- `app/agent.py` orchestrates the conversation and tool calls.
-- `app/services.py` owns cart, order, and session logic.
-- `app/models.py` defines domain entities and order status values.
-- `app/repository.py` stores runtime state in memory.
-- `tests/unit/` validates isolated behavior.
-- `tests/integration/` validates API and service flows end to end.
+- `app/main.py` conecta a aplicação FastAPI e as rotas.
+- `app/api/` contém schemas de requisição/resposta, rotas e middleware.
+- `app/agent.py` orquestra a conversa e as chamadas de ferramentas.
+- `app/services.py` gerencia a lógica de carrinho, pedido e sessão.
+- `app/models.py` define entidades de domínio e valores de status de pedido.
+- `app/repository.py` armazena o estado em tempo de execução na memória.
+- `tests/unit/` valida comportamentos isolados.
+- `tests/integration/` valida fluxos de API e serviço de ponta a ponta.
 
-## Services Overview
+## Serviços no Docker Compose
 
-The `docker-compose.yml` defines the following services:
+O `docker-compose.yml` define os seguintes serviços:
 
-- **api**: FastAPI application exposing the chat endpoint.
-- **redis**: In‑memory data store used for session and cache handling.
-- **ollama**: Ollama server that hosts the LLM models.
-- **ollama-pull-model**: Helper container that waits for Ollama to start and pulls the required model (`llama7b`).
-- **langfuse-db**: PostgreSQL database for Langfuse telemetry data.
-- **langfuse**: Langfuse service for observability of LLM calls (can be disabled via `TELEMETRY_ENABLED=false`).
-- **prometheus**: Metrics collector scraping FastAPI, Ollama and other containers.
-- **loki**: Log aggregation service.
-- **promtail**: Agent that ships container logs to Loki.
-- **grafana**: Dashboard for visualizing Prometheus metrics and Loki logs.
+- **api**: aplicação FastAPI expondo o endpoint de chat.
+- **redis**: armazenamento em memória usado para sessão e cache.
+- **ollama**: servidor Ollama que hospeda os modelos LLM.
+- **ollama-pull-model**: container auxiliar que espera o Ollama iniciar e puxa o modelo necessário (`llama7b`).
+- **langfuse-db**: banco PostgreSQL para os dados de telemetria do Langfuse.
+- **langfuse**: serviço Langfuse para observabilidade de chamadas LLM (pode ser desabilitado com `TELEMETRY_ENABLED=false`).
+- **prometheus**: coletor de métricas que faz scrape da FastAPI, Ollama e outros containers.
+- **loki**: serviço de agregação de logs.
+- **promtail**: agente que envia logs de container para o Loki.
+- **grafana**: dashboard para visualizar métricas do Prometheus e logs do Loki.
 
-All services share persistent volumes defined at the bottom of the compose file:
+Todos os serviços compartilham volumes persistentes definidos no final do arquivo compose:
 
-- `redis-data` – Redis data persistence.
-- `ollama-data` – Ollama model cache.
-- `langfuse-db-data` – Langfuse PostgreSQL data.
-- `app-logs` – Shared log directory mounted into `api` and `promtail`.
+- `redis-data` – persistência de dados do Redis.
+- `ollama-data` – cache de modelo do Ollama.
+- `langfuse-db-data` – dados do PostgreSQL do Langfuse.
+- `app-logs` – diretório de logs compartilhado montado em `api` e `promtail`.
 
-These services can be started with `docker compose up --build` and stopped with `docker compose down -v`.
+Esses serviços podem ser iniciados com `docker compose up --build` e finalizados com `docker compose down -v`.
 
-- a conversational REST API built with FastAPI;
-- integration with Google ADK;
-- a single chat endpoint;
-- session-based memory;
-- cart management tools;
-- checkout with PIX copy/paste;
-- order status lookup;
-- clean README instructions and architecture explanation.
-
-This implementation covers those requirements with the following behavior:
-
-- `POST /api/v1/chat` receives `session_id` and `message`.
-- The agent keeps session history in memory.
-- The service layer adds, removes, clears, and checks out cart items.
-- Checkout creates an order ID and a PIX string.
-- Order status returns `Processing`, `Shipped`, or `Order not found`.
-- The response body is limited to the assistant reply payload.
-
-## Requirements
+## Requisitos
 
 - Docker
 - Docker Compose
-- `make` is optional but recommended
+- `make` é opcional, mas recomendado
 
-## Environment
+## Ambiente
 
-Copy the example environment file:
+Copie o arquivo de ambiente de exemplo:
 
 ```bash
 cp .env.example .env
 ```
 
-The project keeps only the environment variables currently used by the codebase. Update `.env` only if you change runtime settings.
+O projeto mantém apenas as variáveis de ambiente usadas pelo código. Atualize `.env` somente se alterar configurações de runtime.
 
-## Run with Docker
+## Como executar com Docker
 
-Start the API:
+Inicie a API:
 
 ```bash
 make run
 ```
 
-Or directly with Compose:
+Ou diretamente com Compose:
 
 ```bash
 docker compose up --build
 ```
 
-The API is available at `http://localhost:8000`.
+A API fica disponível em `http://localhost:8000`.
 
-## Run tests with Docker
+## Guia de teste E2E
 
-All tests run inside the dedicated test container:
+O guia específico de teste de ponta a ponta está separado em `E2E.md`.
+
+## Executar testes com Docker
+
+Todos os testes rodam dentro do container de testes dedicado:
 
 ```bash
 make test
 ```
 
-Run coverage and keep the artifacts inside `tests/`:
+Execute cobertura e mantenha os artefatos dentro de `tests/`:
 
 ```bash
 make coverage
 ```
 
-Generated coverage files:
+Arquivos de cobertura gerados:
 
 - `tests/.coverage`
 - `tests/coverage/html/`
 - `tests/coverage/coverage.xml`
 
-## Lint and quality checks
+## Lint e verificações de qualidade
 
-Run the project checks in Docker:
+Execute as verificações do projeto no Docker:
 
 ```bash
 make lint
 ```
 
-This executes:
+Isso executa:
 
 - `ruff`
 - `mypy`
 - `black --check`
 - `bandit`
 
-## Useful Make targets
+## Comandos úteis do Make
 
-- `make run` starts the API container.
-- `make test` runs the full test suite in Docker.
-- `make coverage` runs tests with coverage output under `tests/`.
-- `make lint` runs code quality checks in Docker.
-- `make docker-up` starts the API in detached mode.
-- `make docker-down` stops the running containers.
-- `make docker-test` runs the test container workflow.
+- `make run` inicia o container da API.
+- `make test` executa a suíte completa de testes em Docker.
+- `make coverage` executa testes com cobertura e gera relatórios em `tests/`.
+- `make lint` executa verificações de qualidade de código em Docker.
+- `make docker-up` inicia a API em modo detached.
+- `make docker-down` para os containers.
+- `make docker-test` executa o fluxo de testes em container.
 
-## Verify the API manually
+## Verificar a API manualmente
 
 Health check:
 
@@ -167,28 +153,29 @@ Health check:
 curl http://localhost:8000/health
 ```
 
-Chat request:
+Requisição de chat:
 
 ```bash
 curl -X POST http://localhost:8000/api/v1/chat \
   -H "Content-Type: application/json" \
-  -d "{\"session_id\":\"demo\",\"message\":\"add a keyboard for 250\"}"
+  -d '{"session_id":"demo","message":"add a keyboard for 250"}'
 ```
 
-## Implementation notes
+## Notas de implementação
 
-- Runtime state is in memory, which keeps the project simple and testable.
-- The agent is built on Google ADK and supports Ollama by default or Gemini when configured.
-- Gemini integration uses `google-genai`.
-- Optional Langfuse telemetry is skipped when credentials are not present.
-- Docker images are kept lean by installing only runtime dependencies in the app image and dev/test dependencies in the test image.
+- O estado em runtime é mantido na memória, o que mantém o projeto simples e testável.
+- O agente é construído sobre o Google ADK e suporta Ollama por padrão ou Gemini quando configurado.
+- A integração com Gemini usa `google-genai`.
+- A telemetria opcional do Langfuse é pulada quando as credenciais não estão presentes.
+- As imagens Docker são mantidas leves, instalando apenas dependências de runtime na imagem da aplicação e dependências de dev/test na imagem de testes.
 
-## Validation status
+## Status de validação
 
-Current validation targets:
+Metas atuais de validação:
 
-- unit and integration tests in Docker;
-- coverage above 90%;
+- testes unitários e de integração em Docker;
+- cobertura acima de 90%;
+
 - lint and static checks in Docker;
 - no coverage artifacts outside `tests/`.
 
