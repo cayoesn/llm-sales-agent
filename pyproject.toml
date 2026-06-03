@@ -1,0 +1,46 @@
+[project]
+name = "desafio-luizalabs-llm"
+version = "0.1.0"
+description = "Conversational Sales API"
+requires-python = ">=3.12"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+addopts = "--cov=app --cov-report=term-missing:skip-covered --cov-report=html:tests/coverage/html --cov-report=xml:tests/coverage/coverage.xml --cov-fail-under=90"
+
+[tool.coverage.run]
+source = ["app"]
+data_file = "tests/.coverage"
+
+[tool.coverage.report]
+show_missing = true
+fail_under = 90
+
+[tool.coverage.html]
+directory = "tests/coverage/html"
+
+[tool.coverage.xml]
+output = "tests/coverage/coverage.xml"
+
+[tool.ruff]
+line-length = 88
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "B", "UP"]
+ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.12"
+ignore_missing_imports = true
+disallow_untyped_defs = false
+check_untyped_defs = false
+
+[tool.black]
+line-length = 88
+target-version = ['py312']
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["app*"]
+

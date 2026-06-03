@@ -1,0 +1,13 @@
+services:
+  tests:
+    build:
+      context: .
+      target: test
+    env_file:
+      - .env
+    environment:
+      COVERAGE_FILE: /app/tests/.coverage
+      PYTHONDONTWRITEBYTECODE: "1"
+    volumes:
+      - .:/app
+    working_dir: /app
