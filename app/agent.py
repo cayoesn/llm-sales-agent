@@ -5,7 +5,6 @@ import httpx
 from google import genai
 from google.genai import types
 from loguru import logger
-from langfuse import observe
 from langfuse import Langfuse
 
 from app.config import settings
@@ -21,8 +20,12 @@ except ImportError:  # pragma: no cover - fallback for lean runtime and tests
         def __init__(self, **kwargs: Any) -> None:
             self.tools = kwargs.get("tools", [])
 
-# Langfuse init: SDK v4 handles this automatically if variables are in environment.
-langfuse = Langfuse()
+# Langfuse init
+langfuse = Langfuse(
+    public_key=settings.LANGFUSE_PUBLIC_KEY,
+    secret_key=settings.LANGFUSE_SECRET_KEY,
+    host=settings.LANGFUSE_HOST,
+)
 
 def _build_genai_client() -> Any:
     try:
@@ -279,58 +282,83 @@ class SalesAgent:
     def _gemini_temperature(self) -> float:
         return float(getattr(settings, "GEMINI_TEMPERATURE", 0))
 
-    @observe()
     async def _call_ollama(
         self,
+        trace: Any,
         messages: list[dict[str, Any]],
         tools_metadata: list[dict[str, Any]],
     ) -> dict[str, Any]:
-        async with httpx.AsyncClient() as client:
-            payload: dict[str, Any] = {
-                "model": settings.OLLAMA_MODEL,
-                "messages": messages,
-                "stream": False,
-                "options": {
-                    "temperature": self._ollama_temperature(),
-                    "top_p": 0.95,
-                    "top_k": 40,
-                },
-            }
-            if tools_metadata:
-                payload["tools"] = tools_metadata
-                logger.debug(f"Ollama tools_metadata: {tools_metadata}")
+        span = trace.span(name="_call_ollama")
+        span.update(input={"messages": messages})
+        try:
+            async with httpx.AsyncClient() as client:
+                payload: dict[str, Any] = {
+                    "model": settings.OLLAMA_MODEL,
+                    "messages": messages,
+                    "stream": False,
+                    "options": {
+                        "temperature": self._ollama_temperature(),
+                        "top_p": 0.95,
+                        "top_k": 40,
+                    },
+                }
+                if tools_metadata:
+                    payload["tools"] = tools_metadata
+                    logger.debug(f"Ollama tools_metadata: {tools_metadata}")
 
-            response = await client.post(
-                f"{settings.OLLAMA_BASE_URL}/api/chat",
-                json=payload,
-                timeout=240.0,
-            )
-            response.raise_for_status()
-            data = response.json()
-            message = self._parse_ollama_response(data)
-            return message
+                response = await client.post(
+                    f"{settings.OLLAMA_BASE_URL}/api/chat",
+                    json=payload,
+                    timeout=240.0,
+                )
+                response.raise_for_status()
+                data = response.json()
+                logger.debug(f'Ollama full response: {data}')
+                
+                # Extract usage
+                usage = {
+                    "prompt_tokens": data.get("prompt_eval_count"),
+                    "completion_tokens": data.get("eval_count"),
+                }
+                if any(usage.values()):
+                    span.update(usage=usage)
+                    
+                message = self._parse_ollama_response(data)
+                span.update(output={"response": message})
+                span.end()
+                return message
+        except Exception as e:
+            span.update(level="ERROR", status_message=str(e))
+            span.end()
+            raise
 
-    @observe()
-    async def _call_ollama_summary(self, messages: list[dict[str, Any]]) -> dict[str, Any]:
-        async with httpx.AsyncClient() as client:
-            payload: dict[str, Any] = {
-                "model": settings.OLLAMA_MODEL,
-                "messages": messages,
-                "stream": False,
-                "options": {
-                    "temperature": self._ollama_temperature(),
-                    "top_p": 0.95,
-                    "top_k": 40,
-                },
-            }
-            response = await client.post(
-                f"{settings.OLLAMA_BASE_URL}/api/chat",
-                json=payload,
-                timeout=240.0,
-            )
-            response.raise_for_status()
-            data = response.json()
-            return self._parse_ollama_response(data)
+    async def _call_ollama_summary(self, trace: Any, messages: list[dict[str, Any]]) -> dict[str, Any]:
+        span = trace.span(name="_call_ollama_summary", input={"messages": messages})
+        try:
+            async with httpx.AsyncClient() as client:
+                payload: dict[str, Any] = {
+                    "model": settings.OLLAMA_MODEL,
+                    "messages": messages,
+                    "stream": False,
+                    "options": {
+                        "temperature": self._ollama_temperature(),
+                        "top_p": 0.95,
+                        "top_k": 40,
+                    },
+                }
+                response = await client.post(
+                    f"{settings.OLLAMA_BASE_URL}/api/chat",
+                    json=payload,
+                    timeout=240.0,
+                )
+                response.raise_for_status()
+                data = response.json()
+                result = self._parse_ollama_response(data)
+                span.end(output={"response": result})
+                return result
+        except Exception as e:
+            span.end(level="ERROR", status_message=str(e))
+            raise
 
     def _parse_ollama_response(self, data: dict[str, Any]) -> dict[str, Any]:
         if not isinstance(data, dict):
@@ -447,48 +475,70 @@ class SalesAgent:
             normalized[normalized_key] = value
         return normalized
 
-    @observe()
     async def _call_gemini(
         self,
+        trace: Any,
         messages: list[dict[str, Any]],
         include_tools: bool = True,
     ) -> dict[str, Any]:
-        if genai_client is None:
-            raise RuntimeError("Gemini client is not available")
-        gen_kwargs: dict[str, Any] = {"temperature": self._gemini_temperature()}
-        if include_tools:
-            gen_kwargs["tools"] = cast(Any, _build_gemini_tools())
-        config = types.GenerateContentConfig(**gen_kwargs)
-        response = await genai_client.aio.models.generate_content(
-            model=settings.GEMINI_MODEL,
-            contents=messages,
-            config=config,
-        )
-        part = response.candidates[0].content.parts[0]
-        if part.function_call:
-            return {
-                "tool_calls": [
-                    {
-                        "function": {
-                            "name": part.function_call.name,
-                            "arguments": dict(part.function_call.args),
+        span = trace.span(name="_call_gemini")
+        span.update(input={"messages": messages})
+        try:
+            if genai_client is None:
+                raise RuntimeError("Gemini client is not available")
+            gen_kwargs: dict[str, Any] = {"temperature": self._gemini_temperature()}
+            if include_tools:
+                gen_kwargs["tools"] = cast(Any, _build_gemini_tools())
+            config = types.GenerateContentConfig(**gen_kwargs)
+            response = await genai_client.aio.models.generate_content(
+                model=settings.GEMINI_MODEL,
+                contents=messages,
+                config=config,
+            )
+            logger.debug(f'Gemini full response: {response}')
+            
+            # Extract usage
+            if hasattr(response, 'usage_metadata') and response.usage_metadata:
+                span.update(usage={
+                    "prompt_tokens": response.usage_metadata.prompt_token_count,
+                    "completion_tokens": response.usage_metadata.candidates_token_count,
+                })
+            
+            part = response.candidates[0].content.parts[0]
+            if part.function_call:
+                result = {
+                    "tool_calls": [
+                        {
+                            "function": {
+                                "name": part.function_call.name,
+                                "arguments": dict(part.function_call.args),
+                            }
                         }
-                    }
-                ]
-            }
-        return {"content": response.text}
+                    ]
+                }
+            else:
+                result = {"content": response.text}
+            span.update(output={"response": result})
+            span.end()
+            return result
+        except Exception as e:
+            span.update(level="ERROR", status_message=str(e))
+            span.end()
+            raise
 
-    @observe()
     async def _process_tool_calls(
         self,
+        trace: Any,
         initial_message_obj: dict[str, Any],
         session: Any,
         session_id: str,
         tools_metadata: list[dict[str, Any]],
         intent: Optional[str],
     ) -> dict[str, Any]:
+        span = trace.span(name="_process_tool_calls", input={"initial_message_obj": initial_message_obj})
         message_obj = initial_message_obj
         if not isinstance(message_obj, dict) or "tool_calls" not in message_obj:
+            span.end()
             return message_obj
             
         max_iterations = 3
@@ -535,30 +585,38 @@ class SalesAgent:
                 tool_func = getattr(SalesService, func_name)
                 
                 logger.info(f"[Tool Execution] Calling {func_name} with {args}")
-                result = await self._execute_tool_span(tool_func, func_name, args)
+                result = await self._execute_tool_span(trace, tool_func, func_name, args)
                 logger.info(f"[Tool Execution] Result from {func_name}: {result}")
                 
                 session.history.append({"role": "tool", "content": str(result), "name": func_name})
             
             summary_messages = [{"role": "system", "content": self._instruction}, *session.history]
             if settings.LLM_PROVIDER == "gemini":
-                message_obj = await self._call_gemini(summary_messages, include_tools=False)
+                message_obj = await self._call_gemini(trace, summary_messages, include_tools=False)
             else:
-                message_obj = await self._call_ollama_summary(summary_messages)
+                message_obj = await self._call_ollama_summary(trace, summary_messages)
             
             logger.debug(f"[Tool Processing] Summary loop response: {message_obj}")
             
             if not message_obj.get("tool_calls"): 
                 logger.info("[Tool Processing] No further tool calls after summary loop.")
                 break
+        span.end(output={"final_response": message_obj})
         return message_obj
 
-    @observe()
-    async def _execute_tool_span(self, tool_func, func_name, args):
-        return await tool_func(**args)
+    async def _execute_tool_span(self, trace: Any, tool_func, func_name, args):
+        span = trace.span(name=f"tool_{func_name}", input={"args": args})
+        try:
+            result = await tool_func(**args)
+            span.end(output={"result": result})
+            return result
+        except Exception as e:
+            span.end(level="ERROR", status_message=str(e))
+            raise
 
-    @observe()
     async def chat(self, session_id: str, message: str) -> str:
+        trace = langfuse.trace(name="chat_request", session_id=session_id)
+        trace.update(input={"message": message})
         session = await SalesService.get_session(session_id)
 
         # Define intent to tool map for dynamic injection
@@ -596,9 +654,9 @@ class SalesAgent:
                 # For Gemini, we might still want to pass all tools if possible, 
                 # but for Ollama this is critical. 
                 # Keeping consistent for now.
-                message_obj = await self._call_gemini(current_messages, include_tools=True)
+                message_obj = await self._call_gemini(trace, current_messages, include_tools=True)
             else:
-                message_obj = await self._call_ollama(current_messages, tools_metadata)
+                message_obj = await self._call_ollama(trace, current_messages, tools_metadata)
 
             logger.info(f"[LLM Response] Raw from {settings.LLM_PROVIDER}: {message_obj}")
             message_obj = self._normalize_tool_calls(message_obj, self._tools_metadata)
@@ -606,6 +664,7 @@ class SalesAgent:
 
             if "tool_calls" in message_obj:
                 message_obj = await self._process_tool_calls(
+                    trace,
                     message_obj,
                     session,
                     session_id,
@@ -618,10 +677,12 @@ class SalesAgent:
             logger.info(f"[CHAT] Final Response: '{content}'")
             session.history.append({"role": "assistant", "content": content})
             repo.sessions[session_id] = session
+            trace.update(output={"response": content})
             return content
 
         except Exception as error:
             logger.exception(f"[CHAT] Error processing request: {error}")
+            trace.update(level="ERROR", status_message=str(error))
             return "Sorry, there was a problem processing your request."
         finally:
             langfuse.flush()
