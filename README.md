@@ -13,6 +13,8 @@ API conversacional de vendas em FastAPI com memória de sessão, operações de 
 
 ## Arquitetura
 
+O sistema é baseado em FastAPI com injeção de dependência e gerenciamento de estado via um repositório abstrato (em memória para o desafio). O agente de vendas utiliza modelos LLM (Ollama ou Gemini) para entender intenções e invocar ferramentas.
+
 ```mermaid
 flowchart LR
     Cliente[Cliente / Consumidor] --> API[Aplicação FastAPI]
@@ -29,161 +31,56 @@ flowchart LR
     Checkout --> Repo
 ```
 
+### Detalhes técnicos importantes
+
+- **Startup**: A aplicação utiliza um contexto gerenciador de `lifespan` (`app/main.py`) para garantir que o LLM (se for Ollama) esteja disponível e com o modelo carregado antes de aceitar requisições.
+- **Ferramentas**: As ferramentas são definidas dinamicamente (`app/agent.py`) e validadas por schemas Pydantic.
+- **Roteamento de intenção**: Existe uma camada de `IntentRouter` para classificar o que o usuário deseja e restringir quais ferramentas são expostas ao LLM em tempo real, otimizando o uso do contexto.
+- **Normalização**: O agente realiza uma etapa de normalização (`_normalize_tool_calls` e `_normalize_tool_arguments`) para converter nomes de campos variáveis da LLM para os campos esperados pelo `SalesService` (ex: "produto" ou "item" para "product_name").
+
 ### Mapa de componentes
 
-- `app/main.py` conecta a aplicação FastAPI e as rotas.
-- `app/api/` contém schemas de requisição/resposta, rotas e middleware.
-- `app/agent.py` orquestra a conversa e as chamadas de ferramentas.
-- `app/services.py` gerencia a lógica de carrinho, pedido e sessão.
-- `app/models.py` define entidades de domínio e valores de status de pedido.
-- `app/repository.py` armazena o estado em tempo de execução na memória.
-- `tests/unit/` valida comportamentos isolados.
-- `tests/integration/` valida fluxos de API e serviço de ponta a ponta.
+- `app/main.py`: Ponto de entrada, configuração do FastAPI, gerenciamento de `lifespan`, rotas principais e Instrumentação Prometheus.
+- `app/api/`: Middlewares, schemas Pydantic (`ChatRequest`, `ChatResponse`).
+- `app/agent.py`: O "cérebro" do sistema. Orquestra LLMs, gerencia histórico de chat, aplica ferramentas e valida argumentos.
+- `app/services.py`: Lógica de negócio (adicionar/remover do carrinho, finalizar compra).
+- `app/models.py`: Modelos de dados Pydantic (`Cart`, `Order`, `ConversationSession`).
+- `app/repository.py`: Camada de persistência (implementação em memória padrão, mas estruturada para suportar Redis).
+- `app/validators.py`: Validação das chamadas de ferramentas e campos obrigatórios.
+- `tests/`: Suíte completa de testes.
 
 ## Serviços no Docker Compose
 
-O `docker-compose.yml` define os seguintes serviços:
+O `docker-compose.yml` define a infraestrutura completa de observabilidade e execução:
 
-- **api**: aplicação FastAPI expondo o endpoint de chat.
-- **redis**: armazenamento em memória usado para sessão e cache.
-- **ollama**: servidor Ollama que hospeda os modelos LLM.
-- **ollama-pull-model**: container auxiliar que espera o Ollama iniciar e puxa o modelo necessário (`llama7b`).
-- **langfuse-db**: banco PostgreSQL para os dados de telemetria do Langfuse.
-- **langfuse**: serviço Langfuse para observabilidade de chamadas LLM (pode ser desabilitado com `TELEMETRY_ENABLED=false`).
-- **prometheus**: coletor de métricas que faz scrape da FastAPI, Ollama e outros containers.
-- **loki**: serviço de agregação de logs.
-- **promtail**: agente que envia logs de container para o Loki.
-- **grafana**: dashboard para visualizar métricas do Prometheus e logs do Loki.
-
-Todos os serviços compartilham volumes persistentes definidos no final do arquivo compose:
-
-- `redis-data` – persistência de dados do Redis.
-- `ollama-data` – cache de modelo do Ollama.
-- `langfuse-db-data` – dados do PostgreSQL do Langfuse.
-- `app-logs` – diretório de logs compartilhado montado em `api` e `promtail`.
-
-Esses serviços podem ser iniciados com `docker compose up --build` e finalizados com `docker compose down -v`.
+- **api**: Aplicação FastAPI.
+- **redis**: Armazenamento de sessão (atualmente em memória no código, mas a infra está pronta).
+- **ollama**: Servidor de modelos LLM.
+- **ollama-pull-model**: Container de setup do modelo.
+- **langfuse-db & langfuse**: Telemetria para rastreamento de uso de LLM.
+- **prometheus, loki, promtail, grafana**: Stack de observabilidade para métricas e logs.
 
 ## Requisitos
 
 - Docker
 - Docker Compose
-- `make` é opcional, mas recomendado
+- `make` (recomendado)
 
-## Ambiente
+## Como executar
 
-Copie o arquivo de ambiente de exemplo:
+1. Copie o arquivo de ambiente: `cp .env.example .env`
+2. Inicie a API: `make run`
+3. A API fica disponível em `http://localhost:8000`.
 
-```bash
-cp .env.example .env
-```
+## Testes e Cobertura
 
-O projeto mantém apenas as variáveis de ambiente usadas pelo código. Atualize `.env` somente se alterar configurações de runtime.
+O projeto exige **cobertura mínima de 90%**.
 
-## Como executar com Docker
+- Executar testes: `make test`
+- Executar com cobertura: `make coverage`
 
-Inicie a API:
+A configuração está no `pyproject.toml` ( `tool.pytest.ini_options` ).
 
-```bash
-make run
-```
+## Lint e qualidade
 
-Ou diretamente com Compose:
-
-```bash
-docker compose up --build
-```
-
-A API fica disponível em `http://localhost:8000`.
-
-## Guia de teste E2E
-
-O guia específico de teste de ponta a ponta está separado em `E2E.md`.
-
-## Executar testes com Docker
-
-Todos os testes rodam dentro do container de testes dedicado:
-
-```bash
-make test
-```
-
-Execute cobertura e mantenha os artefatos dentro de `tests/`:
-
-```bash
-make coverage
-```
-
-Arquivos de cobertura gerados:
-
-- `tests/.coverage`
-- `tests/coverage/html/`
-- `tests/coverage/coverage.xml`
-
-## Lint e verificações de qualidade
-
-Execute as verificações do projeto no Docker:
-
-```bash
-make lint
-```
-
-Isso executa:
-
-- `ruff`
-- `mypy`
-- `black --check`
-- `bandit`
-
-## Comandos úteis do Make
-
-- `make run` inicia o container da API.
-- `make test` executa a suíte completa de testes em Docker.
-- `make coverage` executa testes com cobertura e gera relatórios em `tests/`.
-- `make lint` executa verificações de qualidade de código em Docker.
-- `make docker-up` inicia a API em modo detached.
-- `make docker-down` para os containers.
-- `make docker-test` executa o fluxo de testes em container.
-
-## Verificar a API manualmente
-
-Health check:
-
-```bash
-curl http://localhost:8000/health
-```
-
-Requisição de chat:
-
-```bash
-curl -X POST http://localhost:8000/api/v1/chat \
-  -H "Content-Type: application/json" \
-  -d '{"session_id":"demo","message":"add a keyboard for 250"}'
-```
-
-## Notas de implementação
-
-- O estado em runtime é mantido na memória, o que mantém o projeto simples e testável.
-- O agente é construído sobre o Google ADK e suporta Ollama por padrão ou Gemini quando configurado.
-- A integração com Gemini usa `google-genai`.
-- A telemetria opcional do Langfuse é pulada quando as credenciais não estão presentes.
-- As imagens Docker são mantidas leves, instalando apenas dependências de runtime na imagem da aplicação e dependências de dev/test na imagem de testes.
-
-## Status de validação
-
-Metas atuais de validação:
-
-- testes unitários e de integração em Docker;
-- cobertura acima de 90%;
-
-- lint and static checks in Docker;
-- no coverage artifacts outside `tests/`.
-
-If you change the code, rerun:
-
-```bash
-make coverage
-make lint
-```
-
-Then confirm the `tests/coverage/` directory contains the generated reports and the repository root stays clean.
+- Executar: `make lint` (executa `ruff`, `mypy`, `black`, `bandit`).

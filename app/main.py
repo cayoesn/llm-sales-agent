@@ -32,10 +32,29 @@ def setup_logging():
 
 setup_logging()
 
+from contextlib import asynccontextmanager
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Verify LLM provider is ready on startup."""
+    if settings.LLM_PROVIDER == "ollama":
+        logger.info("Waiting for Ollama to be ready...")
+        max_retries = 60
+        for attempt in range(max_retries):
+            if await check_ollama_ready():
+                logger.info("Ollama is ready!")
+                break
+            logger.info(f"Attempt {attempt + 1}/{max_retries}: Ollama not ready yet, retrying in 2s...")
+            await __import__("asyncio").sleep(2)
+        else:
+            logger.warning("Ollama was not ready after 2 minutes. Proceeding anyway...")
+    yield
+
 app = FastAPI(
     title=settings.PROJECT_NAME,
     version=settings.VERSION,
     debug=settings.DEBUG,
+    lifespan=lifespan,
 )
 
 app.add_middleware(LoggingMiddleware)
@@ -77,22 +96,6 @@ async def check_ollama_ready() -> bool:
         logger.warning(f"Ollama not ready yet: {e}")
     
     return False
-
-
-@app.on_event("startup")
-async def startup_event():
-    """Verify LLM provider is ready on startup."""
-    if settings.LLM_PROVIDER == "ollama":
-        logger.info("Waiting for Ollama to be ready...")
-        max_retries = 60
-        for attempt in range(max_retries):
-            if await check_ollama_ready():
-                logger.info("Ollama is ready!")
-                break
-            logger.info(f"Attempt {attempt + 1}/{max_retries}: Ollama not ready yet, retrying in 2s...")
-            await __import__("asyncio").sleep(2)
-        else:
-            logger.warning("Ollama was not ready after 2 minutes. Proceeding anyway...")
 
 
 @app.post(f"{settings.API_V1_STR}/chat", response_model=ChatResponse)
