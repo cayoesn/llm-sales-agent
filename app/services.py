@@ -26,7 +26,7 @@ class SalesService:
             if item.product_id == product_id:
                 item.quantity += quantity
                 repo.carts[session_id] = cart
-                return f"Updated {product_name} to {item.quantity} units."
+                return f"Atualizado {product_name} para {item.quantity} unidades."
 
         cart.items.append(
             CartItem(
@@ -34,7 +34,7 @@ class SalesService:
             )
         )
         repo.carts[session_id] = cart
-        return f"Added {quantity}x {product_name} to cart."
+        return f"Adicionado {quantity}x {product_name} ao carrinho."
 
     @staticmethod
     async def remove_from_cart(session_id: str, product_name: str) -> str:
@@ -43,21 +43,21 @@ class SalesService:
         product_id = product_name.lower().replace(" ", "_")
         cart.items = [item for item in cart.items if item.product_id != product_id]
         repo.carts[session_id] = cart
-        return f"Removed {product_name} from cart."
+        return f"Removido {product_name} do carrinho."
 
     @staticmethod
     async def clear_cart(session_id: str) -> str:
         """Limpa todos os itens do carrinho do usuário."""
         if session_id in repo.carts:
             del repo.carts[session_id]
-        return "Cart cleared."
+        return "Carrinho vazio."
 
     @staticmethod
     async def show_cart(session_id: str) -> str:
         """Mostra os itens atuais do carrinho e o total acumulado."""
         cart = await SalesService.get_or_create_cart(session_id)
         if not cart.items:
-            return "Your cart is empty."
+            return "Seu carrinho está vazio."
 
         lines = []
         total = 0.0
@@ -65,10 +65,10 @@ class SalesService:
             item_total = item.price * item.quantity
             total += item_total
             lines.append(
-                f"{item.quantity}x {item.name} - R$ {item.price:.2f} each - Total R$ {item_total:.2f}"
+                f"{item.quantity}x {item.name} - R$ {item.price:.2f} cada - Total R$ {item_total:.2f}"
             )
 
-        lines.append(f"Cart total: R$ {total:.2f}")
+        lines.append(f"Total do carrinho: R$ {total:.2f}")
         return "\n".join(lines)
 
     @staticmethod
@@ -76,7 +76,7 @@ class SalesService:
         """Finaliza o pedido e gera um código PIX para pagamento."""
         cart = await SalesService.get_or_create_cart(session_id)
         if not cart.items:
-            return "Cart is empty."
+            return "Carrinho está vazio."
 
         total = sum(item.price * item.quantity for item in cart.items)
         order_id = str(uuid.uuid4())
@@ -93,7 +93,7 @@ class SalesService:
         await SalesService.clear_cart(session_id)
 
         return (
-            f"Order {order_id} placed successfully! Total: R$ {total:.2f}\nPIX: {pix}"
+            f"Pedido {order_id} realizado com sucesso! Total: R$ {total:.2f}\nPIX: {pix}"
         )
 
     @staticmethod

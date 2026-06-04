@@ -31,7 +31,10 @@ def stub_external_dependencies(monkeypatch):
     fake_genai_client.aio.models.generate_content = AsyncMock()
 
     def fake_agent(*args, **kwargs):
-        return SimpleNamespace(tools=kwargs.get("tools", []))
+        return SimpleNamespace(
+            tools=kwargs.get("tools", []),
+            model=kwargs.get("model", "gemini-1.5-flash"),
+        )
 
     monkeypatch.setattr(agent_module, "Agent", fake_agent, raising=False)
     monkeypatch.setattr(agent_module, "langfuse", fake_langfuse, raising=False)

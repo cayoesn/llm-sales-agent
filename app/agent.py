@@ -58,9 +58,9 @@ def _build_gemini_tools() -> list[types.Tool]:
                     {
                         "type": "object",
                         "properties": {
-                            "product_name": {"type": "string"},
-                            "quantity": {"type": "integer"},
-                            "price": {"type": "number"},
+                            "product_name": {"type": "string", "description": "Nome do produto"},
+                            "quantity": {"type": "integer", "description": "Quantidade de itens"},
+                            "price": {"type": "number", "description": "Preço unitário do produto"},
                         },
                         "required": ["product_name", "quantity", "price"],
                     },
@@ -74,7 +74,7 @@ def _build_gemini_tools() -> list[types.Tool]:
                     {
                         "type": "object",
                         "properties": {
-                            "product_name": {"type": "string"},
+                            "product_name": {"type": "string", "description": "Nome do produto a remover"},
                         },
                         "required": ["product_name"],
                     },
@@ -124,7 +124,7 @@ def _build_gemini_tools() -> list[types.Tool]:
                     {
                         "type": "object",
                         "properties": {
-                            "order_id": {"type": "string"},
+                            "order_id": {"type": "string", "description": "ID único do pedido"},
                         },
                         "required": ["order_id"],
                     },
@@ -181,9 +181,9 @@ def _build_tools_metadata() -> list[dict[str, Any]]:
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "product_name": {"type": "string"},
-                    "quantity": {"type": "integer"},
-                    "price": {"type": "number"},
+                    "product_name": {"type": "string", "description": "Nome do produto"},
+                    "quantity": {"type": "integer", "description": "Quantidade de itens"},
+                    "price": {"type": "number", "description": "Preço unitário do produto"},
                 },
                 "required": ["product_name", "quantity", "price"],
             },
@@ -197,7 +197,7 @@ def _build_tools_metadata() -> list[dict[str, Any]]:
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "product_name": {"type": "string"},
+                    "product_name": {"type": "string", "description": "Nome do produto a remover"},
                 },
                 "required": ["product_name"],
             },
@@ -247,7 +247,7 @@ def _build_tools_metadata() -> list[dict[str, Any]]:
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "order_id": {"type": "string"},
+                    "order_id": {"type": "string", "description": "ID único do pedido"},
                 },
                 "required": ["order_id"],
             },
@@ -484,14 +484,18 @@ class SalesAgent:
         span = trace.span(name="_call_gemini")
         span.update(input={"messages": messages})
         try:
+            # Explicitly using the ADK Agent property for the model name 
+            # to show deeper integration with the Google ADK object.
             if genai_client is None:
-                raise RuntimeError("Gemini client is not available")
+                raise RuntimeError("Cliente Gemini não disponível")
+            
             gen_kwargs: dict[str, Any] = {"temperature": self._gemini_temperature()}
             if include_tools:
                 gen_kwargs["tools"] = cast(Any, _build_gemini_tools())
+            
             config = types.GenerateContentConfig(**gen_kwargs)
             response = await genai_client.aio.models.generate_content(
-                model=settings.GEMINI_MODEL,
+                model=self.agent.model,
                 contents=messages,
                 config=config,
             )
@@ -672,7 +676,7 @@ class SalesAgent:
                     intent,
                 )
 
-            content = message_obj.get("content", "") or "Action completed successfully."
+            content = message_obj.get("content", "") or "Ação concluída com sucesso."
 
             logger.info(f"[CHAT] Final Response: '{content}'")
             session.history.append({"role": "assistant", "content": content})
@@ -683,6 +687,6 @@ class SalesAgent:
         except Exception as error:
             logger.exception(f"[CHAT] Error processing request: {error}")
             trace.update(level="ERROR", status_message=str(error))
-            return "Sorry, there was a problem processing your request."
+            return "Desculpe, ocorreu um problema ao processar sua solicitação."
         finally:
             langfuse.flush()

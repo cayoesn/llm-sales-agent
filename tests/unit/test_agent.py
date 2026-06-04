@@ -321,4 +321,4 @@ async def test_agent_chat_error():
     with patch("httpx.AsyncClient.post", side_effect=Exception("Network error")):
         agent = SalesAgent()
         resp = await agent.chat("s1", "oi")
-        assert resp == "Sorry, there was a problem processing your request."
+        assert resp == "Desculpe, ocorreu um problema ao processar sua solicitação."
