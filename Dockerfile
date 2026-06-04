@@ -34,6 +34,8 @@ FROM base AS test
 COPY requirements-dev.txt requirements.txt ./
 RUN pip install --upgrade pip && pip install -r requirements-dev.txt && pip install -r requirements.txt
 
+RUN useradd --create-home --uid 10001 appuser
+
 COPY app ./app
 RUN mkdir -p /app/logs && chown -R appuser:appuser /app/logs
 COPY tests ./tests
