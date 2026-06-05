@@ -1,15 +1,16 @@
-from functools import lru_cache
 import sys
+from contextlib import asynccontextmanager
+from functools import lru_cache
 
 import httpx
 from fastapi import FastAPI
-from pydantic import BaseModel
 from loguru import logger
 from prometheus_fastapi_instrumentator import Instrumentator
+from pydantic import BaseModel
 
-from app.agent import SalesAgent
 from app.api.middlewares import LoggingMiddleware
 from app.config import settings
+from app.llm_logic.agent import SalesAgent
 
 
 def setup_logging():
@@ -20,19 +21,18 @@ def setup_logging():
         rotation="10 MB",
         retention="5 days",
         serialize=True,
-        level="INFO",
+        level="DEBUG",
     )
     # Pretty stdout for terminal / docker console logs
     logger.add(
         sys.stdout,
         format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>",
-        level="INFO",
+        level="DEBUG",
     )
 
 
 setup_logging()
 
-from contextlib import asynccontextmanager
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -80,7 +80,7 @@ async def check_ollama_ready() -> bool:
     """Check if Ollama is ready by verifying the model is available."""
     if settings.LLM_PROVIDER != "ollama":
         return True
-    
+
     try:
         async with httpx.AsyncClient(timeout=5) as client:
             response = await client.get(
@@ -94,7 +94,7 @@ async def check_ollama_ready() -> bool:
                     return True
     except Exception as e:
         logger.warning(f"Ollama not ready yet: {e}")
-    
+
     return False
 
 

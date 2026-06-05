@@ -1,8 +1,8 @@
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from app.agent import SalesAgent
+from app.llm_logic.agent import SalesAgent
 from app.repository import repo
 from app.services import SalesService
 
@@ -23,48 +23,28 @@ async def test_agent_integration_with_service_and_repo():
     agent = SalesAgent()
     session_id = "test_integration_s1"
 
-    # 1. Mock Ollama returning a tool call for add_to_cart
-    mock_res_tool = MagicMock()
-    mock_res_tool.json.return_value = {
-        "message": {
-            "tool_calls": [
-                {
-                    "function": {
-                        "name": "add_to_cart",
-                        "arguments": {
-                            "product_name": "Tênis Nike",
-                            "quantity": 2,
-                            "price": 299.9,
-                        },
-                    }
-                }
-            ]
-        }
-    }
+    with patch("app.llm_logic.agent.settings.LLM_PROVIDER", "ollama"):
+        with patch(
+            "app.llm_logic.providers.ollama.OllamaProviderClient.chat",
+            new_callable=AsyncMock,
+            side_effect=[
+                {"tool_calls": [{"function": {"name": "add_to_cart", "arguments": {"product_name": "Tênis Nike", "quantity": 2, "price": 299.9}}}]},
+                {"content": "Done! I added 2 Nike sneakers to your cart."},
+            ],
+        ):
+            # Execute the agent chat
+            response = await agent.chat(session_id, "quero 2 tênis nike de 299.9")
 
-    # 2. Mock Ollama returning the final summary
-    mock_res_summary = MagicMock()
-    mock_res_summary.json.return_value = {
-        "message": {"content": "Done! I added 2 Nike sneakers to your cart."}
-    }
+            # Verify the result from LLM summary
+            assert "Done!" in response
+            assert "added 2 Nike sneakers" in response
 
-    with patch(
-        "app.agent.httpx.AsyncClient.post",
-        side_effect=[mock_res_tool, mock_res_summary],
-    ):
-        # Execute the agent chat
-        response = await agent.chat(session_id, "quero 2 tênis nike de 299.9")
-
-        # Verify the result from LLM summary
-        assert "Done!" in response
-        assert "added 2 Nike sneakers" in response
-
-        # VERIFY INTEGRATION: Check if the product was ACTUALLY added to the repository
-        cart = await SalesService.get_or_create_cart(session_id)
-        assert len(cart.items) == 1
-        assert cart.items[0].name == "Tênis Nike"
-        assert cart.items[0].quantity == 2
-        assert cart.items[0].price == 299.9
+            # VERIFY INTEGRATION: Check if the product was ACTUALLY added to the repository
+            cart = await SalesService.get_or_create_cart(session_id)
+            assert len(cart.items) == 1
+            assert cart.items[0].name == "Tênis Nike"
+            assert cart.items[0].quantity == 2
+            assert cart.items[0].price == 299.9
 
 
 @pytest.mark.asyncio
@@ -78,26 +58,21 @@ async def test_agent_checkout_integration():
     # Pre-populate cart via service
     await SalesService.add_to_cart(session_id, "Camisa", 1, 50.0)
 
-    # Mock Ollama returning checkout tool call
-    mock_res_tool = MagicMock()
-    mock_res_tool.json.return_value = {
-        "message": {"tool_calls": [{"function": {"name": "checkout", "arguments": {}}}]}
-    }
+    with patch("app.llm_logic.agent.settings.LLM_PROVIDER", "ollama"):
+        with patch(
+            "app.llm_logic.providers.ollama.OllamaProviderClient.chat",
+            new_callable=AsyncMock,
+            side_effect=[
+                {"tool_calls": [{"function": {"name": "checkout", "arguments": {}}}]},
+                {"content": "Order completed! Here is your PIX code."},
+            ],
+        ):
+            await agent.chat(session_id, "quero finalizar minha compra")
 
-    mock_res_summary = MagicMock()
-    mock_res_summary.json.return_value = {
-        "message": {"content": "Order completed! Here is your PIX code."}
-    }
+            # VERIFY INTEGRATION: Cart should be cleared and Order should exist in repo
+            assert session_id not in repo.carts
+            assert len(repo.orders) == 1
+            order = list(repo.orders.values())[0]
+            assert order.session_id == session_id
+            assert order.total_price == 50.0
 
-    with patch(
-        "app.agent.httpx.AsyncClient.post",
-        side_effect=[mock_res_tool, mock_res_summary],
-    ):
-        await agent.chat(session_id, "quero finalizar minha compra")
-
-        # VERIFY INTEGRATION: Cart should be cleared and Order should exist in repo
-        assert session_id not in repo.carts
-        assert len(repo.orders) == 1
-        order = list(repo.orders.values())[0]
-        assert order.session_id == session_id
-        assert order.total_price == 50.0

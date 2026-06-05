@@ -1,5 +1,8 @@
+import os
+import sys
 from collections.abc import MutableMapping
-from typing import Generic, TypeVar
+from typing import TypeVar
+
 import redis
 from pydantic import BaseModel
 
@@ -9,7 +12,7 @@ from app.models import Cart, ConversationSession, Order
 T = TypeVar("T", bound=BaseModel)
 
 
-class RedisDict(MutableMapping, Generic[T]):
+class RedisDict(MutableMapping[str, T]):
     def __init__(self, client: redis.Redis, prefix: str, model_cls: type[T]):
         self.client = client
         self.prefix = prefix
@@ -63,9 +66,6 @@ class InMemoryRepository:
         self.orders: dict[str, Order] = {}
         self.sessions: dict[str, ConversationSession] = {}
 
-
-import os
-import sys
 
 # Instantiate repository based on settings
 if settings.REDIS_URL and "pytest" not in sys.modules and not os.getenv("TESTING"):

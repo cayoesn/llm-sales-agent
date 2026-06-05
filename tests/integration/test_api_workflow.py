@@ -1,9 +1,8 @@
-from unittest.mock import patch, AsyncMock
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from app.agent import SalesAgent
 from app.main import app
 from app.repository import repo
 
@@ -40,13 +39,20 @@ async def test_full_api_to_repository_flow():
         ]
     }
     mock_res_summary = {"content": "Table added!"}
-    
+
     repo.carts.clear()
     repo.sessions.clear()
-    
-    with patch("app.services.SalesService.add_to_cart", new_callable=AsyncMock, return_value="Table added!"):
-        with patch.object(SalesAgent, "_call_ollama", return_value=mock_res_tool):
-            with patch.object(SalesAgent, "_call_ollama_summary", return_value=mock_res_summary):
+
+    with patch("app.llm_logic.agent.settings.LLM_PROVIDER", "ollama"):
+        with patch("app.services.SalesService.add_to_cart", return_value="Table added!"):
+            with patch(
+                "app.llm_logic.providers.ollama.OllamaProviderClient.chat",
+                new_callable=AsyncMock,
+                side_effect=[
+                    mock_res_tool,
+                    mock_res_summary
+                ],
+            ):
                 async with AsyncClient(
                     transport=ASGITransport(app=app), base_url="http://test"
                 ) as ac:

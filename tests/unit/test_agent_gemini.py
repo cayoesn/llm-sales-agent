@@ -2,7 +2,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from app.agent import SalesAgent
+from app.llm_logic.agent import SalesAgent
 
 
 @pytest.fixture
@@ -13,17 +13,17 @@ def agent():
 @pytest.mark.asyncio
 async def test_agent_chat_gemini_no_tools():
     mock_response = MagicMock()
+    mock_response.text = "Gemini response"
     mock_candidate = MagicMock()
-    mock_candidate.content.parts = [MagicMock()]
+    mock_candidate.content.parts = [MagicMock(text="Gemini response")]
     mock_candidate.content.parts[0].function_call = None
     mock_response.candidates = [mock_candidate]
-    mock_response.text = "Gemini response"
 
-    with patch("app.agent.settings.LLM_PROVIDER", "gemini"):
-        with patch(
-            "app.agent.genai_client.aio.models.generate_content",
-            new=AsyncMock(return_value=mock_response),
-        ):
+    mock_genai_client = MagicMock()
+    mock_genai_client.aio.models.generate_content = AsyncMock(return_value=mock_response)
+
+    with patch("app.llm_logic.agent.settings.LLM_PROVIDER", "gemini"):
+        with patch("app.llm_logic.agent._build_genai_client", return_value=mock_genai_client):
             agent = SalesAgent()
             resp = await agent.chat("s1", "oi")
             assert resp == "Gemini response"
@@ -31,7 +31,6 @@ async def test_agent_chat_gemini_no_tools():
 
 @pytest.mark.asyncio
 async def test_agent_chat_gemini_with_tools():
-    mock_res1 = MagicMock()
     mock_part1 = MagicMock()
     mock_part1.function_call.name = "add_to_cart"
     mock_part1.function_call.args = {
@@ -39,6 +38,7 @@ async def test_agent_chat_gemini_with_tools():
         "quantity": 1,
         "price": 100.0,
     }
+    mock_res1 = MagicMock()
     mock_res1.candidates = [MagicMock(content=MagicMock(parts=[mock_part1]))]
 
     mock_res2 = MagicMock()
@@ -47,11 +47,11 @@ async def test_agent_chat_gemini_with_tools():
         MagicMock(content=MagicMock(parts=[MagicMock(function_call=None)]))
     ]
 
-    with patch("app.agent.settings.LLM_PROVIDER", "gemini"):
-        with patch(
-            "app.agent.genai_client.aio.models.generate_content",
-            new=AsyncMock(side_effect=[mock_res1, mock_res2]),
-        ):
+    mock_genai_client = MagicMock()
+    mock_genai_client.aio.models.generate_content = AsyncMock(side_effect=[mock_res1, mock_res2])
+
+    with patch("app.llm_logic.agent.settings.LLM_PROVIDER", "gemini"):
+        with patch("app.llm_logic.agent._build_genai_client", return_value=mock_genai_client):
             with patch("app.services.SalesService.add_to_cart", return_value="Sucesso"):
                 agent = SalesAgent()
                 resp = await agent.chat("s1", "comprar tênis")
