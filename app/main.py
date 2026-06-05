@@ -44,11 +44,14 @@ async def lifespan(app: FastAPI):
             if await check_ollama_ready():
                 logger.info("Ollama is ready!")
                 break
-            logger.info(f"Attempt {attempt + 1}/{max_retries}: Ollama not ready yet, retrying in 2s...")
+            logger.info(
+                f"Attempt {attempt + 1}/{max_retries}: Ollama not ready yet, retrying in 2s..."
+            )
             await __import__("asyncio").sleep(2)
         else:
             logger.warning("Ollama was not ready after 2 minutes. Proceeding anyway...")
     yield
+
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -83,9 +86,7 @@ async def check_ollama_ready() -> bool:
 
     try:
         async with httpx.AsyncClient(timeout=5) as client:
-            response = await client.get(
-                f"{settings.OLLAMA_BASE_URL}/api/tags"
-            )
+            response = await client.get(f"{settings.OLLAMA_BASE_URL}/api/tags")
             if response.status_code == 200:
                 tags = response.json().get("models", [])
                 model_names = [m.get("name", "") for m in tags]

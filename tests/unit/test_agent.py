@@ -33,13 +33,7 @@ async def test_agent_chat_ollama_no_tools():
 async def test_agent_chat_ollama_with_choice_response_format():
     mock_response = MagicMock()
     mock_response.json.return_value = {
-        "choices": [
-            {
-                "message": {
-                    "content": "Hello from choices format!"
-                }
-            }
-        ]
+        "choices": [{"message": {"content": "Hello from choices format!"}}]
     }
     mock_response.raise_for_status = MagicMock()
 
@@ -79,7 +73,11 @@ async def test_agent_chat_ollama_with_tools():
     }
 
     with patch("httpx.AsyncClient.post", side_effect=[mock_res1, mock_res2]):
-        with patch("app.services.SalesService.add_to_cart", new_callable=AsyncMock, return_value="Success"):
+        with patch(
+            "app.services.SalesService.add_to_cart",
+            new_callable=AsyncMock,
+            return_value="Success",
+        ):
             agent = SalesAgent()
             resp = await agent.chat("s1", "quero um tênis")
             assert resp == "I added the sneakers to your cart!"
@@ -115,7 +113,11 @@ async def test_agent_chat_ollama_with_indexed_tool_call():
 
     with patch("httpx.AsyncClient.post", side_effect=[mock_res1, mock_res2]):
         agent = SalesAgent()
-        with patch("app.services.SalesService.add_to_cart", new_callable=AsyncMock, return_value="Success"):
+        with patch(
+            "app.services.SalesService.add_to_cart",
+            new_callable=AsyncMock,
+            return_value="Success",
+        ):
             resp = await agent.chat("s1", "quero adicionar 2 tênis de corrida")
             assert "Por favor, forneça os seguintes campos" in resp
 
@@ -148,7 +150,11 @@ async def test_agent_chat_ollama_with_tool_call_missing_price():
 
     with patch("httpx.AsyncClient.post", side_effect=[mock_res1, mock_res2]):
         agent = SalesAgent()
-        with patch("app.services.SalesService.add_to_cart", new_callable=AsyncMock, return_value="Success"):
+        with patch(
+            "app.services.SalesService.add_to_cart",
+            new_callable=AsyncMock,
+            return_value="Success",
+        ):
             resp = await agent.chat("s1", "quero adicionar 2 tênis de corrida")
             assert "Por favor, forneça os seguintes campos" in resp
 
@@ -182,7 +188,11 @@ async def test_agent_chat_ollama_with_description_alias():
 
     with patch("httpx.AsyncClient.post", side_effect=[mock_res1, mock_res2]):
         agent = SalesAgent()
-        with patch("app.services.SalesService.add_to_cart", new_callable=AsyncMock, return_value="Success"):
+        with patch(
+            "app.services.SalesService.add_to_cart",
+            new_callable=AsyncMock,
+            return_value="Success",
+        ):
             resp = await agent.chat("s1", "quero adicionar 2 tênis de corrida")
             assert resp == "Added the product using descricao alias."
 
@@ -216,7 +226,11 @@ async def test_agent_chat_ollama_with_item_id_alias():
 
     with patch("httpx.AsyncClient.post", side_effect=[mock_res1, mock_res2]):
         agent = SalesAgent()
-        with patch("app.services.SalesService.add_to_cart", new_callable=AsyncMock, return_value="Success"):
+        with patch(
+            "app.services.SalesService.add_to_cart",
+            new_callable=AsyncMock,
+            return_value="Success",
+        ):
             resp = await agent.chat("s1", "quero adicionar 2 tênis de corrida")
             assert resp == "Added the product using item_id alias."
 
@@ -246,7 +260,11 @@ async def test_agent_chat_ollama_with_user_id_json_arguments():
 
     with patch("httpx.AsyncClient.post", side_effect=[mock_res1, mock_res2]):
         agent = SalesAgent()
-        with patch("app.services.SalesService.add_to_cart", new_callable=AsyncMock, return_value="Success"):
+        with patch(
+            "app.services.SalesService.add_to_cart",
+            new_callable=AsyncMock,
+            return_value="Success",
+        ):
             resp = await agent.chat("s1", "quero adicionar 2 tênis de corrida")
             assert resp == "Added the product using JSON arguments."
 
@@ -270,12 +288,14 @@ async def test_agent_chat_ollama_with_show_cart():
     }
 
     mock_res2 = MagicMock()
-    mock_res2.json.return_value = {
-        "message": {"content": "Here is your cart."}
-    }
+    mock_res2.json.return_value = {"message": {"content": "Here is your cart."}}
 
     with patch("httpx.AsyncClient.post", side_effect=[mock_res1, mock_res2]):
-        with patch("app.services.SalesService.show_cart", new_callable=AsyncMock, return_value="2x Tênis - R$ 150.00 each - Total R$ 300.00\nCart total: R$ 300.00"):
+        with patch(
+            "app.services.SalesService.show_cart",
+            new_callable=AsyncMock,
+            return_value="2x Tênis - R$ 150.00 each - Total R$ 300.00\nCart total: R$ 300.00",
+        ):
             agent = SalesAgent()
             resp = await agent.chat("s1", "mostrar meu carrinho")
             assert resp == "Here is your cart."
@@ -310,7 +330,11 @@ async def test_agent_chat_ollama_with_carrinho_alias():
 
     with patch("httpx.AsyncClient.post", side_effect=[mock_res1, mock_res2]):
         agent = SalesAgent()
-        with patch("app.services.SalesService.add_to_cart", new_callable=AsyncMock, return_value="Success"):
+        with patch(
+            "app.services.SalesService.add_to_cart",
+            new_callable=AsyncMock,
+            return_value="Success",
+        ):
             resp = await agent.chat("s1", "quero adicionar 2 tênis de corrida")
             assert "Por favor, forneça os seguintes campos" in resp
 

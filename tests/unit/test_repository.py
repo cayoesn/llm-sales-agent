@@ -32,6 +32,7 @@ def test_redis_dict_operations():
     redis_dict.clear()
     mock_client.delete.assert_called_with(b"cart:session123")
 
+
 def test_redis_dict_getitem_keyerror():
     mock_client = MagicMock()
     mock_client.get.return_value = None
@@ -39,6 +40,7 @@ def test_redis_dict_getitem_keyerror():
 
     with pytest.raises(KeyError):
         _ = redis_dict["nonexistent"]
+
 
 def test_redis_dict_delitem_keyerror():
     mock_client = MagicMock()
@@ -48,6 +50,7 @@ def test_redis_dict_delitem_keyerror():
     with pytest.raises(KeyError):
         del redis_dict["nonexistent"]
 
+
 def test_redis_dict_iter():
     mock_client = MagicMock()
     mock_client.scan_iter.return_value = [b"cart:session1", b"cart:session2"]
@@ -56,6 +59,7 @@ def test_redis_dict_iter():
     keys = list(redis_dict)
     assert keys == ["session1", "session2"]
     mock_client.scan_iter.assert_called_with("cart:*")
+
 
 def test_redis_dict_len():
     mock_client = MagicMock()

@@ -28,7 +28,20 @@ async def test_agent_integration_with_service_and_repo():
             "app.llm_logic.providers.ollama.OllamaProviderClient.chat",
             new_callable=AsyncMock,
             side_effect=[
-                {"tool_calls": [{"function": {"name": "add_to_cart", "arguments": {"product_name": "Tênis Nike", "quantity": 2, "price": 299.9}}}]},
+                {
+                    "tool_calls": [
+                        {
+                            "function": {
+                                "name": "add_to_cart",
+                                "arguments": {
+                                    "product_name": "Tênis Nike",
+                                    "quantity": 2,
+                                    "price": 299.9,
+                                },
+                            }
+                        }
+                    ]
+                },
                 {"content": "Done! I added 2 Nike sneakers to your cart."},
             ],
         ):
@@ -75,4 +88,3 @@ async def test_agent_checkout_integration():
             order = list(repo.orders.values())[0]
             assert order.session_id == session_id
             assert order.total_price == 50.0
-

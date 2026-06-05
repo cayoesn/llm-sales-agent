@@ -42,12 +42,15 @@ def test_app_metadata():
     assert app.title == settings.PROJECT_NAME
     assert app.version == settings.VERSION
 
+
 @pytest.mark.asyncio
 @patch("app.main.settings")
 async def test_check_ollama_ready_non_ollama(mock_settings):
     mock_settings.LLM_PROVIDER = "gemini"
     from app.main import check_ollama_ready
+
     assert await check_ollama_ready() is True
+
 
 @pytest.mark.asyncio
 @patch("app.main.settings")
@@ -62,7 +65,9 @@ async def test_check_ollama_ready_success(mock_get, mock_settings):
     mock_get.return_value = mock_response
 
     from app.main import check_ollama_ready
+
     assert await check_ollama_ready() is True
+
 
 @pytest.mark.asyncio
 @patch("app.main.settings")
@@ -72,7 +77,9 @@ async def test_check_ollama_ready_failure(mock_get, mock_settings):
     mock_get.side_effect = Exception("Connection error")
 
     from app.main import check_ollama_ready
+
     assert await check_ollama_ready() is False
+
 
 @pytest.mark.asyncio
 @patch("app.main.settings")
@@ -83,6 +90,7 @@ async def test_lifespan_ollama_ready(mock_sleep, mock_check, mock_settings):
     mock_check.return_value = True
 
     from app.main import lifespan
+
     async with lifespan(app):
         mock_check.assert_awaited()
         mock_sleep.assert_not_awaited()

@@ -72,4 +72,3 @@ if settings.REDIS_URL and "pytest" not in sys.modules and not os.getenv("TESTING
     repo = RedisRepository(settings.REDIS_URL)  # type: ignore[assignment]
 else:
     repo = InMemoryRepository()  # type: ignore[assignment]
-

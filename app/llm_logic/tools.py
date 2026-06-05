@@ -13,9 +13,18 @@ def get_tools_metadata() -> list[dict[str, Any]]:
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "product_name": {"type": "string", "description": "Nome do produto"},
-                    "quantity": {"type": "integer", "description": "Quantidade de itens"},
-                    "price": {"type": "number", "description": "Preço unitário do produto"},
+                    "product_name": {
+                        "type": "string",
+                        "description": "Nome do produto",
+                    },
+                    "quantity": {
+                        "type": "integer",
+                        "description": "Quantidade de itens",
+                    },
+                    "price": {
+                        "type": "number",
+                        "description": "Preço unitário do produto",
+                    },
                 },
                 "required": ["product_name", "quantity", "price"],
             },
@@ -29,7 +38,10 @@ def get_tools_metadata() -> list[dict[str, Any]]:
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "product_name": {"type": "string", "description": "Nome do produto a remover"},
+                    "product_name": {
+                        "type": "string",
+                        "description": "Nome do produto a remover",
+                    },
                 },
                 "required": ["product_name"],
             },
@@ -86,8 +98,10 @@ def get_tools_metadata() -> list[dict[str, Any]]:
         },
     ]
 
+
 def build_gemini_tools() -> list[Any]:
     from google.genai import types
+
     return [
         types.Tool(
             function_declarations=[

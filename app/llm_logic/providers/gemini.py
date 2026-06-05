@@ -55,11 +55,13 @@ class GeminiProviderClient(LLMProviderClient):
             )
 
             # Extract usage
-            if hasattr(response, 'usage_metadata') and response.usage_metadata:
-                span.update(usage={
-                    "prompt_tokens": response.usage_metadata.prompt_token_count,
-                    "completion_tokens": response.usage_metadata.candidates_token_count,
-                })
+            if hasattr(response, "usage_metadata") and response.usage_metadata:
+                span.update(
+                    usage={
+                        "prompt_tokens": response.usage_metadata.prompt_token_count,
+                        "completion_tokens": response.usage_metadata.candidates_token_count,
+                    }
+                )
 
             part = response.candidates[0].content.parts[0]
             if part.function_call:

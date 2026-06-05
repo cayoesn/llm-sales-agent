@@ -12,17 +12,21 @@ def mock_provider():
     provider.chat = AsyncMock(return_value={"content": "Default mock response"})
     return provider
 
+
 @pytest.fixture(autouse=True)
 def reset_state():
     from app.repository import repo
+
     repo.carts.clear()
     repo.sessions.clear()
 
     try:
         from app.main import get_agent
+
         get_agent.cache_clear()
     except Exception:
         pass
+
 
 @pytest.fixture(autouse=True)
 def stub_external_dependencies(monkeypatch):

@@ -5,6 +5,7 @@ from langfuse import Langfuse
 from loguru import logger
 
 from app.config import settings
+from app.llm_logic.providers.base import LLMProviderClient
 from app.llm_logic.providers.gemini import GeminiProviderClient
 from app.llm_logic.providers.groq import GroqProviderClient
 from app.llm_logic.providers.ollama import OllamaProviderClient
@@ -21,14 +22,17 @@ langfuse = Langfuse(
     host=settings.LANGFUSE_HOST,
 )
 
+
 def _build_genai_client() -> Any:
     try:
         from google import genai
+
         if settings.GEMINI_API_KEY:
             return genai.Client(api_key=settings.GEMINI_API_KEY)
         return genai.Client()
     except Exception:
         return None
+
 
 class SalesAgent:
     def __init__(self) -> None:
@@ -36,26 +40,27 @@ class SalesAgent:
         self.router = IntentRouter()
         self.tool_validator = ToolValidator()
         self.field_validator = RequiredFieldsValidator()
+        self.provider: LLMProviderClient
 
         # Provider setup
         if settings.LLM_PROVIDER == "gemini":
             self.provider = GeminiProviderClient(
                 client=_build_genai_client(),
                 model=settings.GEMINI_MODEL,
-                temperature=float(getattr(settings, "GEMINI_TEMPERATURE", 0))
+                temperature=float(getattr(settings, "GEMINI_TEMPERATURE", 0)),
             )
         elif settings.LLM_PROVIDER == "groq":
             self.provider = GroqProviderClient(
                 api_key=settings.GROQ_API_KEY or "",
                 base_url=settings.GROQ_BASE_URL,
                 model=settings.GROQ_MODEL,
-                temperature=float(getattr(settings, "GROQ_TEMPERATURE", 0))
+                temperature=float(getattr(settings, "GROQ_TEMPERATURE", 0)),
             )
         else:
             self.provider = OllamaProviderClient(
                 base_url=settings.OLLAMA_BASE_URL,
                 model=settings.OLLAMA_MODEL,
-                temperature=float(getattr(settings, "OLLAMA_TEMPERATURE", 0))
+                temperature=float(getattr(settings, "OLLAMA_TEMPERATURE", 0)),
             )
 
     def _normalize_tool_calls(
@@ -84,10 +89,16 @@ class SalesAgent:
                     arguments = json.loads(arguments)
                 except json.JSONDecodeError:
                     arguments = {}
-            elif isinstance(arguments, list) and arguments and isinstance(arguments[0], dict):
+            elif (
+                isinstance(arguments, list)
+                and arguments
+                and isinstance(arguments[0], dict)
+            ):
                 arguments = arguments[0]
             normalized_args = self._normalize_tool_arguments(arguments)
-            if name == "add_to_cart" and not all(k in normalized_args for k in ["product_name", "quantity", "price"]):
+            if name == "add_to_cart" and not all(
+                k in normalized_args for k in ["product_name", "quantity", "price"]
+            ):
                 name = "show_cart"
                 normalized_args = {}
             function["name"] = name
@@ -100,16 +111,36 @@ class SalesAgent:
     def _normalize_tool_arguments(self, arguments: dict[str, Any]) -> dict[str, Any]:
         normalized: dict[str, Any] = {}
         alias_map: dict[str, str] = {
-            "produto": "product_name", "produto_id": "product_name", "descricao": "product_name",
-            "description": "product_name", "item_id": "product_name", "item": "product_name",
-            "product": "product_name", "name": "product_name", "item_name": "product_name",
-            "produto_nome": "product_name", "product_id": "product_name", "nome_produto": "product_name",
-            "product_name": "product_name", "quantidade": "quantity", "qtd": "quantity",
-            "quantity": "quantity", "preco": "price", "preço": "price", "price": "price",
-            "valor": "price", "valor_unitario": "price", "carrinho": "session_id",
-            "carrinho_id": "session_id", "cart_id": "session_id", "session_id": "session_id",
-            "user_id": "session_id", "usuario_id": "session_id", "pedido_id": "order_id",
-            "order_id": "order_id", "id": "order_id",
+            "produto": "product_name",
+            "produto_id": "product_name",
+            "descricao": "product_name",
+            "description": "product_name",
+            "item_id": "product_name",
+            "item": "product_name",
+            "product": "product_name",
+            "name": "product_name",
+            "item_name": "product_name",
+            "produto_nome": "product_name",
+            "product_id": "product_name",
+            "nome_produto": "product_name",
+            "product_name": "product_name",
+            "quantidade": "quantity",
+            "qtd": "quantity",
+            "quantity": "quantity",
+            "preco": "price",
+            "preço": "price",
+            "price": "price",
+            "valor": "price",
+            "valor_unitario": "price",
+            "carrinho": "session_id",
+            "carrinho_id": "session_id",
+            "cart_id": "session_id",
+            "session_id": "session_id",
+            "user_id": "session_id",
+            "usuario_id": "session_id",
+            "pedido_id": "order_id",
+            "order_id": "order_id",
+            "id": "order_id",
         }
         for key, value in arguments.items():
             normalized_key = alias_map.get(key, key)
@@ -143,14 +174,19 @@ class SalesAgent:
         tools_metadata: list[dict[str, Any]],
         intent: str | None,
     ) -> dict[str, Any]:
-        span = trace.span(name="_process_tool_calls", input={"initial_message_obj": initial_message_obj})
+        span = trace.span(
+            name="_process_tool_calls",
+            input={"initial_message_obj": initial_message_obj},
+        )
         message_obj = initial_message_obj
         if not isinstance(message_obj, dict) or "tool_calls" not in message_obj:
             span.end()
             return message_obj
 
         max_iterations = 3
-        logger.info(f"[Tool Processing] Starting tool loop | Max iterations: {max_iterations}")
+        logger.info(
+            f"[Tool Processing] Starting tool loop | Max iterations: {max_iterations}"
+        )
 
         for _iter_num in range(max_iterations):
             tool_calls = message_obj.get("tool_calls")
@@ -168,14 +204,18 @@ class SalesAgent:
                 if intent:
                     func_name = self.tool_validator.validate(intent, func_name)
                     if func_name != original_name:
-                        logger.info(f"[Tool Validator] Corrected tool '{original_name}' -> '{func_name}' for intent '{intent}'")
+                        logger.info(
+                            f"[Tool Validator] Corrected tool '{original_name}' -> '{func_name}' for intent '{intent}'"
+                        )
 
                 args = function.get("arguments", {})
 
                 # Apply RequiredFieldsValidator
                 missing_fields = self.field_validator.validate(func_name, args)
                 if missing_fields:
-                    return {"content": f"Por favor, forneça os seguintes campos: {', '.join(missing_fields)}"}
+                    return {
+                        "content": f"Por favor, forneça os seguintes campos: {', '.join(missing_fields)}"
+                    }
 
                 if "session_id" not in args and func_name != "get_order_status":
                     args["session_id"] = session_id
@@ -185,16 +225,23 @@ class SalesAgent:
 
                 tool_func = getattr(SalesService, func_name)
 
-                result = await self._execute_tool_span(trace, tool_func, func_name, args)
+                result = await self._execute_tool_span(
+                    trace, tool_func, func_name, args
+                )
 
-                session.history.append({
-                    "role": "tool",
-                    "content": f"[Resultado de {func_name}]: {result}",
-                    "name": func_name
-                })
+                session.history.append(
+                    {
+                        "role": "tool",
+                        "content": f"[Resultado de {func_name}]: {result}",
+                        "name": func_name,
+                    }
+                )
 
             summary_messages = [
-                {"role": "system", "content": "Você é o assistente virtual de vendas da LuizaLabs."},
+                {
+                    "role": "system",
+                    "content": "Você é o assistente virtual de vendas da LuizaLabs.",
+                },
                 *session.history,
                 {
                     "role": "user",
@@ -206,7 +253,9 @@ class SalesAgent:
                 },
             ]
 
-            message_obj = await self.provider.chat(trace, summary_messages, include_tools=False)
+            message_obj = await self.provider.chat(
+                trace, summary_messages, include_tools=False
+            )
             message_obj = self._normalize_tool_calls(message_obj, tools_metadata)
 
             if not message_obj.get("tool_calls"):
@@ -248,18 +297,28 @@ class SalesAgent:
             # Filter tools based on intent
             if intent and intent in intent_tool_map:
                 allowed_tool_names = intent_tool_map[intent]
-                tools_metadata = [t for t in self._tools_metadata if t["name"] in allowed_tool_names]
+                tools_metadata = [
+                    t for t in self._tools_metadata if t["name"] in allowed_tool_names
+                ]
             else:
                 tools_metadata = self._tools_metadata
 
             session.history.append({"role": "user", "content": message})
 
             current_messages = [
-                {"role": "system", "content": "Você é o assistente virtual de vendas da LuizaLabs."},
+                {
+                    "role": "system",
+                    "content": "Você é o assistente virtual de vendas da LuizaLabs.",
+                },
                 *session.history,
             ]
 
-            message_obj = await self.provider.chat(trace, current_messages, include_tools=True, tools_metadata=tools_metadata)
+            message_obj = await self.provider.chat(
+                trace,
+                current_messages,
+                include_tools=True,
+                tools_metadata=tools_metadata,
+            )
             message_obj = self._normalize_tool_calls(message_obj, self._tools_metadata)
 
             if "tool_calls" in message_obj:

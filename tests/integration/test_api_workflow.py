@@ -44,14 +44,13 @@ async def test_full_api_to_repository_flow():
     repo.sessions.clear()
 
     with patch("app.llm_logic.agent.settings.LLM_PROVIDER", "ollama"):
-        with patch("app.services.SalesService.add_to_cart", return_value="Table added!"):
+        with patch(
+            "app.services.SalesService.add_to_cart", return_value="Table added!"
+        ):
             with patch(
                 "app.llm_logic.providers.ollama.OllamaProviderClient.chat",
                 new_callable=AsyncMock,
-                side_effect=[
-                    mock_res_tool,
-                    mock_res_summary
-                ],
+                side_effect=[mock_res_tool, mock_res_summary],
             ):
                 async with AsyncClient(
                     transport=ASGITransport(app=app), base_url="http://test"
@@ -60,5 +59,9 @@ async def test_full_api_to_repository_flow():
 
                 assert response.status_code == 200
                 data = response.json()
-                assert "Table added!" in data["response"] or "Para completar a ação" in data["response"] or "Não consegui entender" in data["response"]
+                assert (
+                    "Table added!" in data["response"]
+                    or "Para completar a ação" in data["response"]
+                    or "Não consegui entender" in data["response"]
+                )
                 pass

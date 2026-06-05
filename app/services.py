@@ -92,9 +92,7 @@ class SalesService:
         repo.orders[order_id] = order
         await SalesService.clear_cart(session_id)
 
-        return (
-            f"Pedido {order_id} realizado com sucesso! Total: R$ {total:.2f}\nPIX: {pix}"
-        )
+        return f"Pedido {order_id} realizado com sucesso! Total: R$ {total:.2f}\nPIX: {pix}"
 
     @staticmethod
     async def get_order_status(order_id: str) -> str:

@@ -19,6 +19,7 @@ class ToolValidator:
             return allowed_tools[0]  # Correct automatically to the intended tool
         return tool_name
 
+
 class RequiredFieldsValidator:
     # Fields that MUST be present, excluding session_id
     REQUIRED_FIELDS = {
