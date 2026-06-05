@@ -141,6 +141,9 @@ class SalesAgent:
             "pedido_id": "order_id",
             "order_id": "order_id",
             "id": "order_id",
+            "pedido": "order_id",
+            "numero_pedido": "order_id",
+            "num_pedido": "order_id",
         }
         for key, value in arguments.items():
             normalized_key = alias_map.get(key, key)
