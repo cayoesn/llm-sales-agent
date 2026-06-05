@@ -42,11 +42,14 @@ flowchart LR
 
 - `app/main.py`: Ponto de entrada, configuração do FastAPI, gerenciamento de `lifespan`, rotas principais e Instrumentação Prometheus.
 - `app/api/`: Middlewares, schemas Pydantic (`ChatRequest`, `ChatResponse`).
-- `app/agent.py`: O "cérebro" do sistema. Orquestra LLMs, gerencia histórico de chat, aplica ferramentas e valida argumentos.
+- `app/llm_logic/`:
+    - `agent.py`: O "cérebro" do sistema. Orquestra LLMs, gerencia histórico de chat, aplica ferramentas e valida argumentos.
+    - `tools.py`: Definições das ferramentas disponíveis.
+    - `validators.py`: Validação das chamadas de ferramentas e campos obrigatórios.
+    - `providers/`: Implementações dos provedores LLM (`gemini.py`, `groq.py`, `ollama.py`, `base.py`).
 - `app/services.py`: Lógica de negócio (adicionar/remover do carrinho, finalizar compra).
 - `app/models.py`: Modelos de dados Pydantic (`Cart`, `Order`, `ConversationSession`).
 - `app/repository.py`: Camada de persistência (implementação em memória padrão, mas estruturada para suportar Redis).
-- `app/validators.py`: Validação das chamadas de ferramentas e campos obrigatórios.
 - `tests/`: Suíte completa de testes.
 
 ## Serviços no Docker Compose
