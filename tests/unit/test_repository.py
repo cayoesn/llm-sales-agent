@@ -1,7 +1,9 @@
 from unittest.mock import MagicMock
+
 import pytest
-from app.repository import RedisDict, RedisRepository
+
 from app.models import Cart
+from app.repository import RedisDict
 
 
 def test_redis_dict_operations():

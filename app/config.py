@@ -13,8 +13,13 @@ class Settings(BaseSettings):
     OLLAMA_MODEL: str = "llama7b"
     OLLAMA_TEMPERATURE: float | None = None
     GEMINI_API_KEY: str | None = None
-    GEMINI_MODEL: str = "gemini-1.5-flash"
+    GEMINI_MODEL: str = "gemini-2.5-flash"
     GEMINI_TEMPERATURE: float | None = None
+
+    GROQ_API_KEY: str | None = None
+    GROQ_MODEL: str = "llama-3.3-70b-versatile"
+    GROQ_BASE_URL: str = "https://api.groq.com/openai/v1"
+    GROQ_TEMPERATURE: float | None = None
 
     # Langfuse
     LANGFUSE_PUBLIC_KEY: str = "pk-lf-demo"

@@ -1,4 +1,5 @@
-from typing import Any, Optional, Dict, List
+from typing import Any
+
 
 class ToolValidator:
     # Maps intent to allowed tools
@@ -27,7 +28,7 @@ class RequiredFieldsValidator:
     }
 
     @staticmethod
-    def validate(tool_name: str, args: Dict[str, Any]) -> Optional[List[str]]:
+    def validate(tool_name: str, args: dict[str, Any]) -> list[str] | None:
         required = RequiredFieldsValidator.REQUIRED_FIELDS.get(tool_name, [])
         missing = [field for field in required if field not in args]
         return missing if missing else None

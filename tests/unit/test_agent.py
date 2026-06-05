@@ -2,7 +2,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from app.agent import SalesAgent
+from app.llm_logic.agent import SalesAgent
 from app.models import ConversationSession
 
 
@@ -13,21 +13,20 @@ def agent():
 
 @pytest.mark.asyncio
 async def test_agent_chat_ollama_no_tools():
-    # Mocking Ollama call
-    mock_response = MagicMock()
-    mock_response.json.return_value = {"message": {"content": "Hello! How can I help?"}}
-    mock_response.raise_for_status = MagicMock()
+    # Mocking Ollama provider
+    mock_chat = AsyncMock(return_value={"content": "Hello! How can I help?"})
 
-    with patch("httpx.AsyncClient.post", return_value=mock_response):
-        session = ConversationSession(session_id="s1")
-        with patch("app.services.SalesService.get_session", return_value=session):
-            agent = SalesAgent()
-            resp = await agent.chat("s1", "oi")
-            assert resp == "Hello! How can I help?"
-            assert session.history[-2:] == [
-                {"role": "user", "content": "oi"},
-                {"role": "assistant", "content": "Hello! How can I help?"},
-            ]
+    session = ConversationSession(session_id="s1")
+    with patch("app.services.SalesService.get_session", return_value=session):
+        agent = SalesAgent()
+        agent.provider.chat = mock_chat
+
+        resp = await agent.chat("s1", "oi")
+        assert resp == "Hello! How can I help?"
+        assert session.history[-2:] == [
+            {"role": "user", "content": "oi"},
+            {"role": "assistant", "content": "Hello! How can I help?"},
+        ]
 
 
 @pytest.mark.asyncio

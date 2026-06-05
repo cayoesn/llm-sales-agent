@@ -55,12 +55,12 @@ async def test_check_ollama_ready_non_ollama(mock_settings):
 async def test_check_ollama_ready_success(mock_get, mock_settings):
     mock_settings.LLM_PROVIDER = "ollama"
     mock_settings.OLLAMA_MODEL = "llama3.1"
-    
+
     mock_response = MagicMock()
     mock_response.status_code = 200
     mock_response.json.return_value = {"models": [{"name": "llama3.1"}]}
     mock_get.return_value = mock_response
-    
+
     from app.main import check_ollama_ready
     assert await check_ollama_ready() is True
 
@@ -70,7 +70,7 @@ async def test_check_ollama_ready_success(mock_get, mock_settings):
 async def test_check_ollama_ready_failure(mock_get, mock_settings):
     mock_settings.LLM_PROVIDER = "ollama"
     mock_get.side_effect = Exception("Connection error")
-    
+
     from app.main import check_ollama_ready
     assert await check_ollama_ready() is False
 
@@ -81,7 +81,7 @@ async def test_check_ollama_ready_failure(mock_get, mock_settings):
 async def test_lifespan_ollama_ready(mock_sleep, mock_check, mock_settings):
     mock_settings.LLM_PROVIDER = "ollama"
     mock_check.return_value = True
-    
+
     from app.main import lifespan
     async with lifespan(app):
         mock_check.assert_awaited()
