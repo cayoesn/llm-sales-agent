@@ -1,4 +1,5 @@
 import json
+import re
 from typing import Any
 
 from langfuse import Langfuse
@@ -194,7 +195,10 @@ class SalesAgent:
         for _iter_num in range(max_iterations):
             tool_calls = message_obj.get("tool_calls")
             if not tool_calls:
-                break
+                break # No more tool calls to process
+
+            last_tool_executed_result = None
+            last_tool_produces_final_response = False
 
             for tool_call in tool_calls:
                 function = tool_call.get("function", {}) or {}
@@ -214,6 +218,17 @@ class SalesAgent:
                 args = function.get("arguments", {})
 
                 # Apply RequiredFieldsValidator
+                if func_name == "get_order_status" and not args.get("order_id"):
+                    # Extract from the original user message if missing
+                    user_message = next((m.get("content") for m in reversed(session.history) if m.get("role") == "user"), "")
+                    logger.debug(f"[UUID Extraction] Checking message: {user_message}")
+                    uuid_match = re.search(r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}", user_message)
+                    if uuid_match:
+                        args["order_id"] = uuid_match.group(0)
+                        logger.debug(f"[UUID Extraction] Found: {args['order_id']}")
+                    else:
+                        logger.debug("[UUID Extraction] No UUID found in message")
+
                 missing_fields = self.field_validator.validate(func_name, args)
                 if missing_fields:
                     return {
@@ -231,6 +246,7 @@ class SalesAgent:
                 result = await self._execute_tool_span(
                     trace, tool_func, func_name, args
                 )
+                last_tool_executed_result = result
 
                 session.history.append(
                     {
@@ -240,10 +256,35 @@ class SalesAgent:
                     }
                 )
 
+                # Get the metadata for the current tool to check the flag
+                current_tool_meta = next(
+                    (t for t in self._tools_metadata if t["name"] == func_name), None
+                )
+                last_tool_produces_final_response = (
+                    current_tool_meta.get("produces_final_response", False)
+                    if current_tool_meta
+                    else False
+                )
+
+            if last_tool_produces_final_response:
+                # We skip the summary LLM call and return the tool's result directly
+                span.end(output={"final_response": {"content": last_tool_executed_result}})
+                return {"content": last_tool_executed_result}
+
             summary_messages = [
                 {
                     "role": "system",
-                    "content": "Você é o assistente virtual de vendas da LuizaLabs.",
+                    "content": (
+                        "Você é o assistente virtual de vendas da LuizaLabs. "
+                        "Sua principal função é auxiliar os clientes em suas compras, "
+                        "gerenciando o carrinho e respondendo a perguntas sobre pedidos. "
+                        "Sempre que um usuário pedir para adicionar, remover, ver, limpar, "
+                        "finalizar o carrinho ou verificar o status de um pedido, "
+                        "use as ferramentas disponíveis de forma precisa e eficiente. "
+                        "Forneça respostas claras e diretas. Se precisar de mais informações, "
+                        "solicite ao usuário. Ao identificar um ID (código alfanumérico longo) em uma solicitação, "
+                        "certifique-se de associá-lo corretamente ao parâmetro `order_id` da ferramenta `get_order_status`."
+                    ),
                 },
                 *session.history,
                 {
@@ -311,7 +352,17 @@ class SalesAgent:
             current_messages = [
                 {
                     "role": "system",
-                    "content": "Você é o assistente virtual de vendas da LuizaLabs.",
+                    "content": (
+                        "Você é o assistente virtual de vendas da LuizaLabs. "
+                        "Sua principal função é auxiliar os clientes em suas compras, "
+                        "gerenciando o carrinho e respondendo a perguntas sobre pedidos. "
+                        "Sempre que um usuário pedir para adicionar, remover, ver, limpar, "
+                        "finalizar o carrinho ou verificar o status de um pedido, "
+                        "use as ferramentas disponíveis de forma precisa e eficiente. "
+                        "Forneça respostas claras e diretas. Se precisar de mais informações, "
+                        "solicite ao usuário. Ao identificar um ID (código alfanumérico longo) em uma solicitação, "
+                        "certifique-se de associá-lo corretamente ao parâmetro `order_id` da ferramenta `get_order_status`."
+                    ),
                 },
                 *session.history,
             ]

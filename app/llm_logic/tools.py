@@ -57,6 +57,7 @@ def get_tools_metadata() -> list[dict[str, Any]]:
                 "properties": {},
                 "required": [],
             },
+            "produces_final_response": True,
         },
         {
             "name": "show_cart",
@@ -69,6 +70,7 @@ def get_tools_metadata() -> list[dict[str, Any]]:
                 "properties": {},
                 "required": [],
             },
+            "produces_final_response": True,
         },
         {
             "name": "checkout",
@@ -81,11 +83,13 @@ def get_tools_metadata() -> list[dict[str, Any]]:
                 "properties": {},
                 "required": [],
             },
+            "produces_final_response": True,
         },
         {
             "name": "get_order_status",
             "description": (
                 "APENAS quando o usuário pergunta pelo STATUS de um pedido já realizado e fornece o ID do pedido. "
+                "O ID do pedido é um código alfanumérico único, geralmente longo (ex: '1f3db40c-efba-4efd-9603-90f8a3cc3dd7'). "
                 "Se o usuário não fornecer o ID, solicite-o antes de chamar esta ferramenta."
             ),
             "parameters": {
@@ -95,6 +99,7 @@ def get_tools_metadata() -> list[dict[str, Any]]:
                 },
                 "required": ["order_id"],
             },
+            "produces_final_response": True,
         },
     ]
 
