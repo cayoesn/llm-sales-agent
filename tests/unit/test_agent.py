@@ -298,7 +298,7 @@ async def test_agent_chat_ollama_with_show_cart():
         ):
             agent = SalesAgent()
             resp = await agent.chat("s1", "mostrar meu carrinho")
-            assert resp == "Here is your cart."
+            assert resp == "2x Tênis - R$ 150.00 each - Total R$ 300.00\nCart total: R$ 300.00"
 
 
 @pytest.mark.asyncio
@@ -345,3 +345,58 @@ async def test_agent_chat_error():
         agent = SalesAgent()
         resp = await agent.chat("s1", "oi")
         assert resp == "Desculpe, ocorreu um problema ao processar sua solicitação."
+
+
+@pytest.mark.asyncio
+async def test_agent_extract_uuid_from_history():
+    # Test UUID extraction when tool call is missing order_id but history has it
+    order_id = "12345678-1234-1234-1234-1234567890ab"
+    mock_res1 = MagicMock()
+    mock_res1.json.return_value = {
+        "message": {
+            "tool_calls": [
+                {
+                    "function": {
+                        "name": "get_order_status",
+                        "arguments": {}, # missing order_id
+                    }
+                }
+            ]
+        }
+    }
+    
+    # We skip the 2nd call by using produces_final_response=True for get_order_status
+
+    session = ConversationSession(session_id="s1")
+    session.history.append({"role": "user", "content": f"Meu pedido é {order_id}"})
+    
+    with patch("app.services.SalesService.get_session", return_value=session):
+        with patch("httpx.AsyncClient.post", return_value=mock_res1):
+            with patch("app.services.SalesService.get_order_status", new_callable=AsyncMock, return_value="Status: OK") as mock_tool:
+                agent = SalesAgent()
+                await agent.chat("s1", f"qual o status do pedido {order_id}?")
+                # Verify tool was called with the extracted UUID
+                mock_tool.assert_called_once_with(order_id=order_id)
+
+@pytest.mark.asyncio
+async def test_agent_tool_execution_error():
+    # Test error handling during tool execution
+    mock_res1 = MagicMock()
+    mock_res1.json.return_value = {
+        "message": {
+            "tool_calls": [
+                {
+                    "function": {
+                        "name": "show_cart",
+                        "arguments": {},
+                    }
+                }
+            ]
+        }
+    }
+
+    with patch("httpx.AsyncClient.post", return_value=mock_res1):
+        with patch("app.services.SalesService.show_cart", side_effect=Exception("Tool failed")):
+            agent = SalesAgent()
+            resp = await agent.chat("s1", "ver carrinho")
+            assert resp == "Desculpe, ocorreu um problema ao processar sua solicitação."
