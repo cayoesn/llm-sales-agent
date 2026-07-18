@@ -48,20 +48,20 @@ class SalesAgent:
             self.provider = GeminiProviderClient(
                 client=_build_genai_client(),
                 model=settings.GEMINI_MODEL,
-                temperature=float(getattr(settings, "GEMINI_TEMPERATURE", 0)),
+                temperature=float(settings.GEMINI_TEMPERATURE or 0.0),
             )
         elif settings.LLM_PROVIDER == "groq":
             self.provider = GroqProviderClient(
                 api_key=settings.GROQ_API_KEY or "",
                 base_url=settings.GROQ_BASE_URL,
                 model=settings.GROQ_MODEL,
-                temperature=float(getattr(settings, "GROQ_TEMPERATURE", 0)),
+                temperature=float(settings.GROQ_TEMPERATURE or 0.0),
             )
         else:
             self.provider = OllamaProviderClient(
                 base_url=settings.OLLAMA_BASE_URL,
                 model=settings.OLLAMA_MODEL,
-                temperature=float(getattr(settings, "OLLAMA_TEMPERATURE", 0)),
+                temperature=float(settings.OLLAMA_TEMPERATURE or 0.0),
             )
 
     def _normalize_tool_calls(
@@ -275,7 +275,8 @@ class SalesAgent:
                 {
                     "role": "system",
                     "content": (
-                        "Você é o assistente virtual de vendas da LuizaLabs. "
+                        "Você é o StoreCore AI, um assistente virtual de vendas inteligente e "
+                        "especializado em comércio conversacional. "
                         "Sua principal função é auxiliar os clientes em suas compras, "
                         "gerenciando o carrinho e respondendo a perguntas sobre pedidos. "
                         "Sempre que um usuário pedir para adicionar, remover, ver, limpar, "
@@ -353,7 +354,8 @@ class SalesAgent:
                 {
                     "role": "system",
                     "content": (
-                        "Você é o assistente virtual de vendas da LuizaLabs. "
+                        "Você é o StoreCore AI, um assistente virtual de vendas inteligente e "
+                        "especializado em comércio conversacional. "
                         "Sua principal função é auxiliar os clientes em suas compras, "
                         "gerenciando o carrinho e respondendo a perguntas sobre pedidos. "
                         "Sempre que um usuário pedir para adicionar, remover, ver, limpar, "

@@ -1,7 +1,7 @@
 [project]
-name = "desafio-luizalabs-llm"
-version = "0.1.0"
-description = "Conversational Sales API"
+name = "llm-sales-agent"
+version = "1.0.0"
+description = "Conversational Sales and Cart Agent Engine"
 requires-python = ">=3.12"
 
 [tool.pytest.ini_options]
