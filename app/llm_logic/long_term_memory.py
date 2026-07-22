@@ -40,13 +40,17 @@ class LongTermMemoryEngine:
                 profile.preferred_brands.append(brand)
                 profile.extracted_facts.append(f"Preferência declarada pela marca '{brand.capitalize()}'.")
 
-        # 2. Extração de Orçamento (ex: "até 5000", "máximo 1000 reais")
-        budget_match = re.search(r"(?:até|máximo|orçamento|gastando|no máximo)\s*(?:R\$\s*)?(\d+(?:\.\d+)?|\d+)", lower_msg)
+        # 2. Extração de Orçamento (ex: "até 8000", "até R$ 8000", "máximo 1000")
+        budget_match = re.search(r"(?:até|máximo|orçamento|gastando|no máximo)?\s*(?:r\$\s*)?(\d+(?:[\.,]\d+)?)", lower_msg)
         if budget_match:
             try:
-                val = float(budget_match.group(1).replace(".", ""))
-                profile.max_budget = val
-                profile.extracted_facts.append(f"Teto de orçamento de R$ {val:.2f}.")
+                raw_num = budget_match.group(1).replace(".", "").replace(",", ".")
+                val = float(raw_num)
+                if val > 50:  # Evita capturar pequenas quantidades como quantidade de itens
+                    profile.max_budget = val
+                    fact_str = f"Teto de orçamento de R$ {val:.2f}."
+                    if fact_str not in profile.extracted_facts:
+                        profile.extracted_facts.append(fact_str)
             except ValueError:
                 pass
 
