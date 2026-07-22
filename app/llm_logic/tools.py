@@ -101,6 +101,50 @@ def get_tools_metadata() -> list[dict[str, Any]]:
             },
             "produces_final_response": True,
         },
+        {
+            "name": "search_catalog_graph_rag",
+            "description": (
+                "APENAS quando o usuário deseja PESQUISAR, BUSCAR ou CONSULTAR o catálogo de produtos e acessórios. "
+                "Utiliza Graph-RAG Híbrido com Grafo de Conhecimento de Produtos e RRF."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "Termos de busca de produto ou categoria"},
+                },
+                "required": ["query"],
+            },
+            "produces_final_response": True,
+        },
+        {
+            "name": "apply_negotiated_discount",
+            "description": (
+                "APENAS quando o usuário PEDE DESCONTO ou negocia valor no carrinho. "
+                "Valida regras de margem com a FSM de negociação sem alucinação."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "requested_discount_percent": {"type": "number", "description": "Porcentagem de desconto solicitada"},
+                    "payment_method": {"type": "string", "description": "Método de pagamento (PIX, Cartão)"},
+                },
+                "required": ["requested_discount_percent"],
+            },
+            "produces_final_response": True,
+        },
+        {
+            "name": "get_personalized_recommendations",
+            "description": (
+                "APENAS quando o usuário pede RECOMENDAÇÕES, SUGESTÕES de combos ou acessórios para seu carrinho. "
+                "Utiliza Memória de Longo Prazo e Grafo de Conhecimento."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": [],
+            },
+            "produces_final_response": True,
+        },
     ]
 
 

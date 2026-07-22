@@ -6,10 +6,14 @@ from langfuse import Langfuse
 from loguru import logger
 
 from app.config import settings
+from app.llm_logic.graph_rag import graph_rag_engine
+from app.llm_logic.long_term_memory import memory_engine
+from app.llm_logic.negotiation_fsm import negotiation_fsm
 from app.llm_logic.providers.base import LLMProviderClient
 from app.llm_logic.providers.gemini import GeminiProviderClient
 from app.llm_logic.providers.groq import GroqProviderClient
 from app.llm_logic.providers.ollama import OllamaProviderClient
+from app.llm_logic.structured_output import SalesAgentOutputValidator
 from app.llm_logic.tools import get_tools_metadata
 from app.llm_logic.validators import RequiredFieldsValidator, ToolValidator
 from app.repository import repo
@@ -145,6 +149,11 @@ class SalesAgent:
             "pedido": "order_id",
             "numero_pedido": "order_id",
             "num_pedido": "order_id",
+            "desconto": "requested_discount_percent",
+            "percentual": "requested_discount_percent",
+            "query": "query",
+            "busca": "query",
+            "pesquisa": "query",
         }
         for key, value in arguments.items():
             normalized_key = alias_map.get(key, key)
@@ -157,13 +166,13 @@ class SalesAgent:
                 except (ValueError, TypeError):
                     pass
                 continue
-            if normalized_key == "price":
+            if normalized_key in {"price", "requested_discount_percent"}:
                 try:
                     normalized[normalized_key] = float(value)
                 except (ValueError, TypeError):
                     pass
                 continue
-            if normalized_key in {"session_id", "order_id"}:
+            if normalized_key in {"session_id", "order_id", "query", "payment_method"}:
                 normalized[normalized_key] = str(value)
                 continue
             normalized[normalized_key] = value
@@ -195,7 +204,7 @@ class SalesAgent:
         for _iter_num in range(max_iterations):
             tool_calls = message_obj.get("tool_calls")
             if not tool_calls:
-                break # No more tool calls to process
+                break
 
             last_tool_executed_result = None
             last_tool_produces_final_response = False
@@ -206,7 +215,6 @@ class SalesAgent:
                 if not func_name:
                     continue
 
-                # Apply ToolValidator
                 original_name = func_name
                 if intent:
                     func_name = self.tool_validator.validate(intent, func_name)
@@ -217,17 +225,11 @@ class SalesAgent:
 
                 args = function.get("arguments", {})
 
-                # Apply RequiredFieldsValidator
                 if func_name == "get_order_status" and not args.get("order_id"):
-                    # Extract from the original user message if missing
                     user_message = next((m.get("content") for m in reversed(session.history) if m.get("role") == "user"), "")
-                    logger.debug(f"[UUID Extraction] Checking message: {user_message}")
                     uuid_match = re.search(r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}", user_message)
                     if uuid_match:
                         args["order_id"] = uuid_match.group(0)
-                        logger.debug(f"[UUID Extraction] Found: {args['order_id']}")
-                    else:
-                        logger.debug("[UUID Extraction] No UUID found in message")
 
                 missing_fields = self.field_validator.validate(func_name, args)
                 if missing_fields:
@@ -235,7 +237,7 @@ class SalesAgent:
                         "content": f"Por favor, forneça os seguintes campos: {', '.join(missing_fields)}"
                     }
 
-                if "session_id" not in args and func_name != "get_order_status":
+                if "session_id" not in args and func_name not in {"get_order_status", "search_catalog_graph_rag"}:
                     args["session_id"] = session_id
 
                 if not hasattr(SalesService, func_name):
@@ -256,7 +258,6 @@ class SalesAgent:
                     }
                 )
 
-                # Get the metadata for the current tool to check the flag
                 current_tool_meta = next(
                     (t for t in self._tools_metadata if t["name"] == func_name), None
                 )
@@ -267,24 +268,19 @@ class SalesAgent:
                 )
 
             if last_tool_produces_final_response:
-                # We skip the summary LLM call and return the tool's result directly
                 span.end(output={"final_response": {"content": last_tool_executed_result}})
                 return {"content": last_tool_executed_result}
+
+            memory_context = memory_engine.format_memory_prompt_context(session_id)
 
             summary_messages = [
                 {
                     "role": "system",
                     "content": (
-                        "Você é o StoreCore AI, um assistente virtual de vendas inteligente e "
-                        "especializado em comércio conversacional. "
+                        "Você é o StoreCore AI Enterprise, um assistente virtual de vendas de alta performance. "
                         "Sua principal função é auxiliar os clientes em suas compras, "
-                        "gerenciando o carrinho e respondendo a perguntas sobre pedidos. "
-                        "Sempre que um usuário pedir para adicionar, remover, ver, limpar, "
-                        "finalizar o carrinho ou verificar o status de um pedido, "
-                        "use as ferramentas disponíveis de forma precisa e eficiente. "
-                        "Forneça respostas claras e diretas. Se precisar de mais informações, "
-                        "solicite ao usuário. Ao identificar um ID (código alfanumérico longo) em uma solicitação, "
-                        "certifique-se de associá-lo corretamente ao parâmetro `order_id` da ferramenta `get_order_status`."
+                        "gerenciando o carrinho, consultando o catálogo via Graph-RAG e negociando descontos estritos. "
+                        f"{memory_context}"
                     ),
                 },
                 *session.history,
@@ -310,7 +306,7 @@ class SalesAgent:
         span.end(output={"final_response": message_obj})
         return message_obj
 
-    async def _execute_tool_span(self, trace: Any, tool_func, func_name, args):
+    async def _execute_tool_span(self, trace: Any, tool_func: Any, func_name: str, args: dict[str, Any]) -> Any:
         span = trace.span(name=f"tool_{func_name}", input={"args": args})
         try:
             result = await tool_func(**args)
@@ -325,7 +321,10 @@ class SalesAgent:
         trace.update(input={"message": message})
         session = await SalesService.get_session(session_id)
 
-        # Define intent to tool map for dynamic injection
+        # 1. Atualizar Memória de Longo Prazo do Cliente (Mem0 Pattern)
+        memory_engine.extract_and_update_memory(session_id, message)
+        memory_prompt_context = memory_engine.format_memory_prompt_context(session_id)
+
         intent_tool_map = {
             "show_cart": ["show_cart"],
             "add_to_cart": ["add_to_cart"],
@@ -333,13 +332,14 @@ class SalesAgent:
             "clear_cart": ["clear_cart"],
             "checkout": ["checkout"],
             "get_order_status": ["get_order_status"],
+            "search_catalog_graph_rag": ["search_catalog_graph_rag"],
+            "apply_negotiated_discount": ["apply_negotiated_discount"],
+            "get_personalized_recommendations": ["get_personalized_recommendations"],
         }
 
         try:
-            # Detect intent
             intent = self.router.get_intent(message)
 
-            # Filter tools based on intent
             if intent and intent in intent_tool_map:
                 allowed_tool_names = intent_tool_map[intent]
                 tools_metadata = [
@@ -354,16 +354,11 @@ class SalesAgent:
                 {
                     "role": "system",
                     "content": (
-                        "Você é o StoreCore AI, um assistente virtual de vendas inteligente e "
-                        "especializado em comércio conversacional. "
-                        "Sua principal função é auxiliar os clientes em suas compras, "
-                        "gerenciando o carrinho e respondendo a perguntas sobre pedidos. "
-                        "Sempre que um usuário pedir para adicionar, remover, ver, limpar, "
-                        "finalizar o carrinho ou verificar o status de um pedido, "
-                        "use as ferramentas disponíveis de forma precisa e eficiente. "
-                        "Forneça respostas claras e diretas. Se precisar de mais informações, "
-                        "solicite ao usuário. Ao identificar um ID (código alfanumérico longo) em uma solicitação, "
-                        "certifique-se de associá-lo corretamente ao parâmetro `order_id` da ferramenta `get_order_status`."
+                        "Você é o StoreCore AI Enterprise, um assistente de vendas conversacional inteligente. "
+                        "Você gerencia carrinho de compras, pesquisa o catálogo usando Graph-RAG com RRF, "
+                        "aplica descontos estritos com a FSM de negociação sem aluciná-los "
+                        "e recomenda produtos personalizados. "
+                        f"{memory_prompt_context}"
                     ),
                 },
                 *session.history,
@@ -387,12 +382,16 @@ class SalesAgent:
                     intent,
                 )
 
-            content = message_obj.get("content", "") or "Ação concluída com sucesso."
+            raw_content = message_obj.get("content", "") or "Ação concluída com sucesso."
+            
+            # Validação via Structured Outputs Engine
+            validated_output = SalesAgentOutputValidator.validate_or_fallback(raw_content)
+            final_content = validated_output.message
 
-            session.history.append({"role": "assistant", "content": content})
+            session.history.append({"role": "assistant", "content": final_content})
             repo.sessions[session_id] = session
-            trace.update(output={"response": content})
-            return content
+            trace.update(output={"response": final_content})
+            return final_content
 
         except Exception as error:
             logger.exception(f"[CHAT] Error processing request: {error}")

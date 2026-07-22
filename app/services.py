@@ -1,8 +1,13 @@
 import secrets
+import json
 import uuid
+from typing import Any
 
 from app.models import Cart, CartItem, ConversationSession, Order, OrderStatus
 from app.repository import repo
+from app.llm_logic.graph_rag import graph_rag_engine
+from app.llm_logic.long_term_memory import memory_engine
+from app.llm_logic.negotiation_fsm import negotiation_fsm
 
 
 class SalesService:
@@ -108,3 +113,61 @@ class SalesService:
         if session_id not in repo.sessions:
             repo.sessions[session_id] = ConversationSession(session_id=session_id)
         return repo.sessions[session_id]
+
+    @staticmethod
+    async def search_catalog_graph_rag(query: str) -> str:
+        """Busca produtos usando Graph-RAG Híbrido com expansão de Grafo e RRF."""
+        results = graph_rag_engine.search_hybrid(query, top_k=3)
+        if not results:
+            return "Nenhum produto encontrado no catálogo para a busca."
+
+        formatted_lines = []
+        for prod in results:
+            line = f"📦 {prod['name']} - R$ {prod['price']:.2f}\n  Descrição: {prod['description']}"
+            if prod.get("graph_relations"):
+                relations = ", ".join([
+                    f"{r['related_product']} ({r['relation']})"
+                    for r in prod["graph_relations"]
+                ])
+                line += f"\n  💡 Itens Relacionados/Acessórios: {relations}"
+            formatted_lines.append(line)
+
+        return "\n\n".join(formatted_lines)
+
+    @staticmethod
+    async def apply_negotiated_discount(
+        session_id: str, requested_discount_percent: float, payment_method: str = "PIX"
+    ) -> str:
+        """Aplica desconto negociado no carrinho com validação estrita da FSM."""
+        cart = await SalesService.get_or_create_cart(session_id)
+        if not cart.items:
+            return "Carrinho vazio. Adicione produtos antes de negociar descontos."
+
+        cart_total = sum(item.price * item.quantity for item in cart.items)
+        approval = negotiation_fsm.evaluate_discount_request(
+            cart_total=cart_total,
+            requested_discount_percent=requested_discount_percent,
+            payment_method=payment_method,
+        )
+
+        return f"{approval.reason}\nValor Total Original: R$ {cart_total:.2f} -> Valor com Desconto: R$ {approval.final_price:.2f}"
+
+    @staticmethod
+    async def get_personalized_recommendations(session_id: str) -> str:
+        """Gera recomendações personalizadas com base na Memória de Longo Prazo e Grafo."""
+        profile = memory_engine.get_or_create_profile(session_id)
+        cart = await SalesService.get_or_create_cart(session_id)
+
+        cart_product_ids = [item.product_id for item in cart.items]
+        recommendations = graph_rag_engine.get_bundle_recommendations(cart_product_ids)
+
+        if not recommendations:
+            return "Adicione produtos ao seu carrinho para visualizar ofertas de combos e acessórios recomendados!"
+
+        lines = ["🎯 Recomendações Personalizadas e Combos de Desconto:"]
+        for rec in recommendations:
+            lines.append(
+                f"- Para seu item do carrinho, recomendamos: {rec['recommended_product_name']} por R$ {rec['special_price']:.2f} (Desconto de {rec['discount_percent']}%)"
+            )
+
+        return "\n".join(lines)
