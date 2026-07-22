@@ -121,3 +121,40 @@ docker-compose -f docker-compose.test.yml run --rm tests
 ```bash
 docker-compose -f docker-compose.test.yml run --rm tests sh -lc "ruff check app tests && mypy app && black --check app tests && bandit -r app"
 ```
+
+
+
+---
+
+## 🚀 Execução em Container Isolado (100% Autônomo)
+
+Este repositório é **100% independente e autônomo**. Ele não depende de nenhum outro projeto do ecossistema para ser executado, testado ou analisado.
+
+### 🛠️ Componentes Inclusos na Stack Docker Exclusiva:
+- `sales_agent_app`: API FastAPI do Agente de Vendas Conversacional.
+- `sales_agent_postgres`: Banco de dados PostgreSQL dedicado (porta 5432).
+- `sales_agent_langfuse`: Servidor de observabilidade Langfuse self-hosted pré-inicializado.
+
+### 📦 Como Executar:
+
+1. **Subir toda a pilha isolada**:
+   ```bash
+   docker-compose up -d --build
+   ```
+
+2. **Endpoints & Endereços de Acesso**:
+   - **Serviço da Aplicação**: `http://localhost:8000` (Documentação interativa OpenAPI em `/docs` se aplicável)
+   - **Painel de Observabilidade (Langfuse)**: `http://localhost:3001`
+   - **Credenciais Automáticas do Langfuse**:
+     - Email: `admin@llmsalesagent.com`
+     - Senha: `adminpassword123`
+
+3. **Execução de Testes Automatizados em Container**:
+   ```bash
+   make test
+   ```
+
+4. **Encerrar a pilha**:
+   ```bash
+   docker-compose down -v
+   ```
