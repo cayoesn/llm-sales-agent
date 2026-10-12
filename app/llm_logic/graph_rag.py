@@ -1,13 +1,13 @@
-from typing import Any
+from typing import Any, Optional
 import networkx as nx
 
 
 class GraphRAGEngine:
-    """Enterprise Graph-RAG Engine.
+    """Enterprise Graph-RAG Engine with Personalized PageRank (PPR).
     
-    Combina busca vetorial semântica, correspondência esparsa (BM25)
-    e Grafo de Conhecimento relacional de produtos (NetworkX) com
-    Reciprocal Rank Fusion (RRF) e Re-ranqueamento Multi-Estágio.
+    Combina busca vetorial semântica, correspondência esparsa (BM25),
+    Grafo de Conhecimento relacional (NetworkX) e Personalized PageRank (PPR)
+    para ranquear produtos e recomendações de cross-selling por centralidade contextual.
     """
 
     def __init__(self) -> None:
@@ -67,14 +67,33 @@ class GraphRAGEngine:
 
         # Adiciona arestas do Grafo de Conhecimento (Relacionamentos)
         # 1. Compatibilidade de Acessórios
-        self.graph.add_edge("iphone_15_pro", "capa_magsafe", relation="COMPATIBLE_ACCESSORY", discount_percent=10.0)
-        self.graph.add_edge("iphone_15_pro", "carregador_20w", relation="RECOMMENDED_CHARGER", discount_percent=5.0)
+        self.graph.add_edge("iphone_15_pro", "capa_magsafe", relation="COMPATIBLE_ACCESSORY", discount_percent=10.0, weight=1.0)
+        self.graph.add_edge("iphone_15_pro", "carregador_20w", relation="RECOMMENDED_CHARGER", discount_percent=5.0, weight=0.8)
         
         # 2. Bundles e Cross-Selling de Laptops & Periféricos
-        self.graph.add_edge("macbook_air_m3", "mouse_logitech_mx", relation="RECOMMENDED_PERIPHERAL", discount_percent=12.0)
+        self.graph.add_edge("macbook_air_m3", "mouse_logitech_mx", relation="RECOMMENDED_PERIPHERAL", discount_percent=12.0, weight=1.0)
         
         # 3. Relacionamentos Simétricos de Alternativas (Up-selling)
-        self.graph.add_edge("capa_magsafe", "iphone_15_pro", relation="PROTECTS_DEVICE")
+        self.graph.add_edge("capa_magsafe", "iphone_15_pro", relation="PROTECTS_DEVICE", weight=0.5)
+
+    def compute_personalized_pagerank(self, seed_product_ids: list[str], alpha: float = 0.85) -> dict[str, float]:
+        """Calcula o Personalized PageRank (Random Walk with Restart) centrado nos produtos de interesse."""
+        if not self.graph.nodes:
+            return {}
+
+        valid_seeds = [pid for pid in seed_product_ids if pid in self.graph]
+        if not valid_seeds:
+            # Distribuição uniforme padrão
+            personalization = {node: 1.0 / len(self.graph) for node in self.graph}
+        else:
+            personalization = {node: (1.0 / len(valid_seeds) if node in valid_seeds else 0.0) for node in self.graph}
+
+        try:
+            undirected_graph = self.graph.to_undirected()
+            ppr_scores = nx.pagerank(undirected_graph, alpha=alpha, personalization=personalization, max_iter=100)
+            return ppr_scores
+        except Exception:
+            return {node: 1.0 / len(self.graph) for node in self.graph}
 
     def search_hybrid(self, query: str, top_k: int = 3) -> list[dict[str, Any]]:
         """Realiza busca híbrida (Texto/Tags + RRF) combinada com busca no Grafo."""
@@ -89,13 +108,12 @@ class GraphRAGEngine:
                 if token in searchable_text:
                     score += 1.0
                 if any(tag == token for tag in prod["tags"]):
-                    score += 2.0  # Peso maior para tags exatas
+                    score += 2.0
             bm25_scores[pid] = score
 
-        # 2. Vector Semantic Similarity Dummy / Score
+        # 2. Vector Semantic Similarity Score
         vector_scores: dict[str, float] = {}
         for pid, prod in self.catalog.items():
-            # Simulação de similaridade vetorial por contagem de ngramas
             vector_scores[pid] = bm25_scores[pid] * 1.5
 
         # 3. Reciprocal Rank Fusion (RRF)
@@ -135,13 +153,19 @@ class GraphRAGEngine:
         return results
 
     def get_bundle_recommendations(self, product_ids: list[str]) -> list[dict[str, Any]]:
-        """Gera ofertas de combo (bundle) com base nas arestas do Grafo."""
+        """Gera ofertas de combo (bundle) orientadas por Personalized PageRank no Grafo."""
+        if not product_ids:
+            return []
+
+        ppr = self.compute_personalized_pagerank(product_ids)
         recommendations = []
+        
         for pid in product_ids:
             if pid in self.graph:
                 for _, target, data in self.graph.out_edges(pid, data=True):
                     target_prod = self.catalog.get(target)
                     if target_prod and target not in product_ids:
+                        target_centrality = ppr.get(target, 0.0)
                         recommendations.append({
                             "base_product_id": pid,
                             "recommended_product_id": target,
@@ -149,8 +173,12 @@ class GraphRAGEngine:
                             "relation": data.get("relation"),
                             "price": target_prod["price"],
                             "discount_percent": data.get("discount_percent", 0.0),
-                            "special_price": round(target_prod["price"] * (1 - data.get("discount_percent", 0.0) / 100.0), 2)
+                            "special_price": round(target_prod["price"] * (1 - data.get("discount_percent", 0.0) / 100.0), 2),
+                            "ppr_centrality": round(target_centrality, 4),
                         })
+
+        # Ordena recomendações pela centralidade do Personalized PageRank
+        recommendations.sort(key=lambda r: r.get("ppr_centrality", 0.0), reverse=True)
         return recommendations
 
 

@@ -18,6 +18,13 @@ async def test_graph_rag_search():
     if iphone_res:
         assert len(iphone_res[0]["graph_relations"]) > 0
 
+    # Test Personalized PageRank (PPR)
+    ppr = engine.compute_personalized_pagerank(["iphone_15_pro"])
+    assert ppr["capa_magsafe"] > 0.0
+    bundles = engine.get_bundle_recommendations(["iphone_15_pro"])
+    assert len(bundles) > 0
+    assert "ppr_centrality" in bundles[0]
+
 
 @pytest.mark.asyncio
 async def test_long_term_memory():
@@ -43,12 +50,15 @@ async def test_negotiation_fsm():
     assert approval.approved is True
     assert approval.approved_discount_percent == 10.0
     assert approval.final_price == 450.0
+    assert approval.expected_utility > 0.0
+    assert approval.conversion_probability > 0.0
 
     # Cart total = 1500, request = 10% (Allowed fully)
     approval_bulk = fsm.evaluate_discount_request(cart_total=1500.0, requested_discount_percent=10.0, payment_method="PIX")
     assert approval_bulk.approved is True
     assert approval_bulk.approved_discount_percent == 10.0
     assert approval_bulk.final_price == 1350.0
+    assert approval_bulk.expected_utility > 0.0
 
     # Empty cart
     approval_empty = fsm.evaluate_discount_request(cart_total=0.0, requested_discount_percent=10.0)
