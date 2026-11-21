@@ -1,73 +1,73 @@
-# Guia de Teste E2E
+# E2E Testing Guide
 
-Este documento descreve como executar o projeto de ponta a ponta usando Docker e verificar o comportamento completo da API e das ferramentas de observabilidade.
+This document describes how to run the project end-to-end using Docker and verify the complete behavior of the API and observability stack.
 
-## Pré-requisitos
-- Docker e Docker Compose instalados.
-- `make` instalado (opcional, mas recomendado).
+## Prerequisites
+- Docker and Docker Compose installed.
+- `make` installed (optional, but recommended).
 
-## Iniciar a stack completa
+## Starting the full stack
 
-1. Copie o arquivo de exemplo de ambiente: `cp .env.example .env`
-2. Inicie a stack: `docker compose up --build`
+1. Copy the example environment file: `cp .env.example .env`
+2. Start the stack: `docker compose up --build`
 
-### O que acontece na inicialização (Lifespan)
-Ao subir o container da `api`, o sistema executa um gerenciador de `lifespan` (`app/main.py`). Se `LLM_PROVIDER` for configurado como `ollama`, a API entrará em um loop de espera até que o serviço `ollama-pull-model` termine de baixar o modelo necessário (`llama3.1`), garantindo que a API não responda requisições antes de ter capacidade de processamento.
+### What happens on startup (Lifespan)
+When starting the `api` container, the system runs a `lifespan` manager (`app/main.py`). If `LLM_PROVIDER` is configured as `ollama`, the API enters a wait loop until the `ollama-pull-model` service finishes downloading the required model (`llama3.1`), ensuring the API does not serve requests before it is ready to process them.
 
-Os serviços iniciados incluem API, Ollama, Redis, Langfuse (opcional), e a stack de observabilidade (Prometheus, Loki, Promtail, Grafana).
+Started services include the API, Ollama, Redis, Langfuse (optional), and the observability stack (Prometheus, Loki, Promtail, Grafana).
 
-## Teste de fluxo de chat
+## Chat flow testing
 
-Abaixo, exemplos de interações principais via `curl`. Use o mesmo `session_id` para manter o contexto na mesma sessão.
+Below are examples of core interactions via `curl`. Use the same `session_id` to preserve context within a session.
 
-### 1. Adicionar e gerenciar carrinho
+### 1. Add and manage cart items
 
 ```bash
-# Adicionar
+# Add
 curl -X POST http://localhost:8000/api/v1/chat \
   -H "Content-Type: application/json" \
-  -d '{"session_id":"sess-1","message":"Quero 2 tênis por 100 reais cada"}'
+  -d '{"session_id":"sess-1","message":"I want 2 sneakers for $100 each"}'
 
-# Consultar
+# View
 curl -X POST http://localhost:8000/api/v1/chat \
   -H "Content-Type: application/json" \
-  -d '{"session_id":"sess-1","message":"Mostrar meu carrinho"}'
+  -d '{"session_id":"sess-1","message":"Show my cart"}'
 
-# Remover
+# Remove
 curl -X POST http://localhost:8000/api/v1/chat \
   -H "Content-Type: application/json" \
-  -d '{"session_id":"sess-1","message":"Remova os tênis"}'
+  -d '{"session_id":"sess-1","message":"Remove the sneakers"}'
 ```
 
-### 2. Checkout e Status
+### 2. Checkout and Order Status
 
 ```bash
 # Checkout
 curl -X POST http://localhost:8000/api/v1/chat \
   -H "Content-Type: application/json" \
-  -d '{"session_id":"sess-1","message":"Finalizar compra"}'
+  -d '{"session_id":"sess-1","message":"Complete purchase"}'
 
-# Consultar Status (use o ID retornado no checkout)
+# Check Status (use the ID returned at checkout)
 curl -X POST http://localhost:8000/api/v1/chat \
   -H "Content-Type: application/json" \
-  -d '{"session_id":"sess-1","message":"Status do pedido <ORDER_ID>"}'
+  -d '{"session_id":"sess-1","message":"Order status <ORDER_ID>"}'
 ```
 
-## Monitoramento
+## Monitoring
 
-1. Acesse o Grafana em `http://localhost:3001` (login: `admin` / `admin`).
-2. Explore dashboards do Loki (logs da API) e Prometheus (métricas de requisições).
+1. Open Grafana at `http://localhost:3001` (login: `admin` / `admin`).
+2. Explore dashboards for Loki (API logs) and Prometheus (request metrics).
 
-## Validação de qualidade
+## Quality validation
 
-Para validar o sistema localmente conforme as regras definidas no projeto:
+To validate the system locally according to the project quality rules:
 
 ```bash
-# Executa testes unitários/integração com coverage > 90%
+# Run unit/integration tests with coverage > 90%
 make coverage
 
-# Executa checks de lint, mypy e segurança
+# Run lint, mypy, and security checks
 make lint
 ```
 
-Para encerrar: `docker compose down -v`.
+To tear down: `docker compose down -v`.

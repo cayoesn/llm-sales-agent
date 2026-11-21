@@ -22,7 +22,7 @@ async def test_health_endpoint():
 async def test_chat_endpoint_structure():
     fake_agent = MagicMock()
     fake_agent.chat = AsyncMock(return_value="Hello! How can I help?")
-    payload = {"session_id": "test_s", "message": "oi"}
+    payload = {"session_id": "test_s", "message": "hi"}
 
     with patch("app.main.get_agent", return_value=fake_agent):
         async with AsyncClient(
@@ -35,7 +35,7 @@ async def test_chat_endpoint_structure():
         "session_id": "test_s",
         "response": "Hello! How can I help?",
     }
-    fake_agent.chat.assert_awaited_once_with("test_s", "oi")
+    fake_agent.chat.assert_awaited_once_with("test_s", "hi")
 
 
 def test_app_metadata():

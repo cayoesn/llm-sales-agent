@@ -1,10 +1,11 @@
 import re
-from typing import Any
+
 from pydantic import BaseModel, Field
 
 
 class CustomerProfile(BaseModel):
-    """Perfil de Memória de Longo Prazo do Cliente (Mem0 Pattern)."""
+    """Customer Long-Term Memory Profile (Mem0 Pattern)."""
+
     session_id: str
     preferred_categories: list[str] = Field(default_factory=list)
     preferred_brands: list[str] = Field(default_factory=list)
@@ -15,9 +16,9 @@ class CustomerProfile(BaseModel):
 
 class LongTermMemoryEngine:
     """Enterprise Long-Term Memory Engine.
-    
-    Extrai autonomamente fatos, preferências, marca favorita e restrições
-    de orçamento do diálogo do cliente e injeta um contexto sumarizado.
+
+    Autonomously extracts facts, preferences, favorite brands, and budget
+    constraints from customer dialogue and injects a summarized context.
     """
 
     def __init__(self) -> None:
@@ -28,53 +29,65 @@ class LongTermMemoryEngine:
             self.profiles[session_id] = CustomerProfile(session_id=session_id)
         return self.profiles[session_id]
 
-    def extract_and_update_memory(self, session_id: str, message: str) -> CustomerProfile:
-        """Extrai fatos da mensagem do usuário e atualiza a memória persistente."""
+    def extract_and_update_memory(
+        self, session_id: str, message: str
+    ) -> CustomerProfile:
+        """Extract facts from the user message and update persistent memory."""
         profile = self.get_or_create_profile(session_id)
         lower_msg = message.lower()
 
-        # 1. Extração de Marcas de Preferência
+        # 1. Extract Preferred Brands
         brands = ["apple", "logitech", "samsung", "dell", "sony"]
         for brand in brands:
             if brand in lower_msg and brand not in profile.preferred_brands:
                 profile.preferred_brands.append(brand)
-                profile.extracted_facts.append(f"Preferência declarada pela marca '{brand.capitalize()}'.")
+                profile.extracted_facts.append(
+                    f"Stated preference for brand '{brand.capitalize()}'."
+                )
 
-        # 2. Extração de Orçamento (ex: "até 8000", "até R$ 8000", "máximo 1000")
-        budget_match = re.search(r"(?:até|máximo|orçamento|gastando|no máximo)?\s*(?:r\$\s*)?(\d+(?:[\.,]\d+)?)", lower_msg)
+        # 2. Extract Budget (e.g., "up to 8000", "up to $8000", "max 1000")
+        budget_match = re.search(
+            r"(?:up to|max|maximum|budget|spending|at most)?\s*(?:\$\s*|usd\s*)?(\d+(?:,\d{3})*(?:\.\d+)?)",
+            lower_msg,
+        )
         if budget_match:
             try:
-                raw_num = budget_match.group(1).replace(".", "").replace(",", ".")
+                raw_num = budget_match.group(1).replace(",", "")
                 val = float(raw_num)
-                if val > 50:  # Evita capturar pequenas quantidades como quantidade de itens
+                if val > 50:  # Avoid capturing small quantities such as item counts
                     profile.max_budget = val
-                    fact_str = f"Teto de orçamento de R$ {val:.2f}."
+                    fact_str = f"Budget cap of ${val:.2f}."
                     if fact_str not in profile.extracted_facts:
                         profile.extracted_facts.append(fact_str)
             except ValueError:
                 pass
 
-        # 3. Preferência de Pagamento (PIX, Cartão, Boleto)
+        # 3. Payment Preference (PIX, Credit Card)
         if "pix" in lower_msg:
             profile.payment_preference = "PIX"
-            if "Preferência por pagamento via PIX." not in profile.extracted_facts:
-                profile.extracted_facts.append("Preferência por pagamento via PIX.")
-        elif "cartão" in lower_msg or "credito" in lower_msg or "crédito" in lower_msg:
-            profile.payment_preference = "Cartão de Crédito"
-            if "Preferência por pagamento via Cartão de Crédito." not in profile.extracted_facts:
-                profile.extracted_facts.append("Preferência por pagamento via Cartão de Crédito.")
+            if "Preference for payment via PIX." not in profile.extracted_facts:
+                profile.extracted_facts.append("Preference for payment via PIX.")
+        elif "credit card" in lower_msg or "card" in lower_msg or "credit" in lower_msg:
+            profile.payment_preference = "Credit Card"
+            if "Preference for payment via Credit Card." not in profile.extracted_facts:
+                profile.extracted_facts.append(
+                    "Preference for payment via Credit Card."
+                )
 
         return profile
 
     def format_memory_prompt_context(self, session_id: str) -> str:
-        """Formata os fatos extraídos da memória de longo prazo para injeção no System Prompt."""
+        """Format extracted long-term memory facts for injection into the system prompt."""
         profile = self.get_or_create_profile(session_id)
         if not profile.extracted_facts:
             return ""
 
         facts_str = "\n".join([f"- {fact}" for fact in profile.extracted_facts])
-        return f"\n[MEMÓRIA DE LONGO PRAZO DO CLIENTE]:\n{facts_str}\nUtilize essas preferências sutilmente ao recomendar produtos e descontos."
+        return (
+            f"\n[CUSTOMER LONG-TERM MEMORY]:\n{facts_str}\n"
+            "Subtly use these preferences when recommending products and discounts."
+        )
 
 
-# Instância Singleton do Long-Term Memory Engine
+# Singleton instance of the Long-Term Memory Engine
 memory_engine = LongTermMemoryEngine()

@@ -21,7 +21,7 @@ async def test_full_api_to_repository_flow():
     """
     payload = {
         "session_id": "api_integration_test",
-        "message": "adicionar mesa de R$ 500",
+        "message": "add table for $500",
     }
 
     mock_res_tool = {
@@ -30,7 +30,7 @@ async def test_full_api_to_repository_flow():
                 "function": {
                     "name": "add_to_cart",
                     "arguments": {
-                        "product_name": "Mesa",
+                        "product_name": "Table",
                         "quantity": 1,
                         "price": 500.0,
                     },
@@ -61,7 +61,5 @@ async def test_full_api_to_repository_flow():
                 data = response.json()
                 assert (
                     "Table added!" in data["response"]
-                    or "Para completar a ação" in data["response"]
-                    or "Não consegui entender" in data["response"]
+                    or "Please provide the following fields" in data["response"]
                 )
-                pass

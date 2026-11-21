@@ -6,24 +6,24 @@ def get_tools_metadata() -> list[dict[str, Any]]:
         {
             "name": "add_to_cart",
             "description": (
-                "APENAS quando o usuário deseja ADICIONAR um produto ao carrinho, "
-                "fornecendo nome do produto, quantidade e preço. "
-                "NUNCA use isto para visualizar, listar ou inspecionar o carrinho."
+                "ONLY when the user wants to ADD a product to the cart, "
+                "providing product name, quantity, and price. "
+                "NEVER use this to view, list, or inspect the cart."
             ),
             "parameters": {
                 "type": "object",
                 "properties": {
                     "product_name": {
                         "type": "string",
-                        "description": "Nome do produto",
+                        "description": "Product name",
                     },
                     "quantity": {
                         "type": "integer",
-                        "description": "Quantidade de itens",
+                        "description": "Number of items",
                     },
                     "price": {
                         "type": "number",
-                        "description": "Preço unitário do produto",
+                        "description": "Unit price of the product",
                     },
                 },
                 "required": ["product_name", "quantity", "price"],
@@ -32,15 +32,15 @@ def get_tools_metadata() -> list[dict[str, Any]]:
         {
             "name": "remove_from_cart",
             "description": (
-                "APENAS quando o usuário deseja REMOVER um produto específico do carrinho. "
-                "NUNCA use isto para visualizar o carrinho ou esvaziar todos os itens."
+                "ONLY when the user wants to REMOVE a specific product from the cart. "
+                "NEVER use this to view the cart or clear all items."
             ),
             "parameters": {
                 "type": "object",
                 "properties": {
                     "product_name": {
                         "type": "string",
-                        "description": "Nome do produto a remover",
+                        "description": "Name of the product to remove",
                     },
                 },
                 "required": ["product_name"],
@@ -49,8 +49,8 @@ def get_tools_metadata() -> list[dict[str, Any]]:
         {
             "name": "clear_cart",
             "description": (
-                "APENAS quando o usuário deseja ESVAZIAR todo o carrinho de uma vez. "
-                "NUNCA use isto para remover um único item ou para visualizar o carrinho."
+                "ONLY when the user wants to CLEAR the entire cart at once. "
+                "NEVER use this to remove a single item or view the cart."
             ),
             "parameters": {
                 "type": "object",
@@ -62,8 +62,8 @@ def get_tools_metadata() -> list[dict[str, Any]]:
         {
             "name": "show_cart",
             "description": (
-                "APENAS quando o usuário deseja VER, CONSULTAR ou INSPECIONAR o conteúdo do carrinho. "
-                "NUNCA use isto para adicionar, remover, esvaziar ou finalizar a compra."
+                "ONLY when the user wants to VIEW, CHECK, or INSPECT the contents of the cart. "
+                "NEVER use this to add, remove, clear, or complete a purchase."
             ),
             "parameters": {
                 "type": "object",
@@ -75,8 +75,8 @@ def get_tools_metadata() -> list[dict[str, Any]]:
         {
             "name": "checkout",
             "description": (
-                "APENAS quando o usuário deseja FINALIZAR a compra, PAGAR ou receber um código PIX. "
-                "NUNCA use isto apenas para visualizar o carrinho."
+                "ONLY when the user wants to COMPLETE the purchase, PAY, or receive a PIX payment code. "
+                "NEVER use this just to view the cart."
             ),
             "parameters": {
                 "type": "object",
@@ -88,14 +88,14 @@ def get_tools_metadata() -> list[dict[str, Any]]:
         {
             "name": "get_order_status",
             "description": (
-                "APENAS quando o usuário pergunta pelo STATUS de um pedido já realizado e fornece o ID do pedido. "
-                "O ID do pedido é um código alfanumérico único, geralmente longo (ex: '1f3db40c-efba-4efd-9603-90f8a3cc3dd7'). "
-                "Se o usuário não fornecer o ID, solicite-o antes de chamar esta ferramenta."
+                "ONLY when the user asks for the STATUS of an already placed order and provides the order ID. "
+                "The order ID is a unique alphanumeric code, usually long (e.g., '1f3db40c-efba-4efd-9603-90f8a3cc3dd7'). "
+                "If the user does not provide the ID, ask for it before calling this tool."
             ),
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "order_id": {"type": "string", "description": "ID único do pedido"},
+                    "order_id": {"type": "string", "description": "Unique order ID"},
                 },
                 "required": ["order_id"],
             },
@@ -104,13 +104,16 @@ def get_tools_metadata() -> list[dict[str, Any]]:
         {
             "name": "search_catalog_graph_rag",
             "description": (
-                "APENAS quando o usuário deseja PESQUISAR, BUSCAR ou CONSULTAR o catálogo de produtos e acessórios. "
-                "Utiliza Graph-RAG Híbrido com Grafo de Conhecimento de Produtos e RRF."
+                "ONLY when the user wants to SEARCH, BROWSE, or QUERY the catalog of products and accessories. "
+                "Uses Hybrid Graph-RAG with the Product Knowledge Graph and RRF."
             ),
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "query": {"type": "string", "description": "Termos de busca de produto ou categoria"},
+                    "query": {
+                        "type": "string",
+                        "description": "Product or category search terms",
+                    },
                 },
                 "required": ["query"],
             },
@@ -119,14 +122,20 @@ def get_tools_metadata() -> list[dict[str, Any]]:
         {
             "name": "apply_negotiated_discount",
             "description": (
-                "APENAS quando o usuário PEDE DESCONTO ou negocia valor no carrinho. "
-                "Valida regras de margem com a FSM de negociação sem alucinação."
+                "ONLY when the user REQUESTS A DISCOUNT or negotiates the cart price. "
+                "Enforces margin rules with the negotiation FSM without hallucination."
             ),
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "requested_discount_percent": {"type": "number", "description": "Porcentagem de desconto solicitada"},
-                    "payment_method": {"type": "string", "description": "Método de pagamento (PIX, Cartão)"},
+                    "requested_discount_percent": {
+                        "type": "number",
+                        "description": "Requested discount percentage",
+                    },
+                    "payment_method": {
+                        "type": "string",
+                        "description": "Payment method (PIX, Credit Card)",
+                    },
                 },
                 "required": ["requested_discount_percent"],
             },
@@ -135,8 +144,8 @@ def get_tools_metadata() -> list[dict[str, Any]]:
         {
             "name": "get_personalized_recommendations",
             "description": (
-                "APENAS quando o usuário pede RECOMENDAÇÕES, SUGESTÕES de combos ou acessórios para seu carrinho. "
-                "Utiliza Memória de Longo Prazo e Grafo de Conhecimento."
+                "ONLY when the user asks for RECOMMENDATIONS, bundle SUGGESTIONS, or accessories for their cart. "
+                "Uses Long-Term Memory and the Product Knowledge Graph."
             ),
             "parameters": {
                 "type": "object",

@@ -7,9 +7,9 @@ from pydantic import BaseModel, Field
 
 
 class OrderStatus(StrEnum):
-    PROCESSING = "Processando"
-    SHIPPED = "Enviado"
-    NOT_FOUND = "Pedido não encontrado"
+    PROCESSING = "Processing"
+    SHIPPED = "Shipped"
+    NOT_FOUND = "Order not found"
 
 
 class CartItem(BaseModel):

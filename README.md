@@ -1,39 +1,39 @@
 # 🤖 LLM Sales Agent (Enterprise Edition)
 
-Agente Autônomo Conversacional de Vendas B2B/B2C com **Graph-RAG & Personalized PageRank (PPR)**, **Utility-Maximizing Negotiation FSM**, Memória de Longo Prazo e Validação Estruturada.
+Autonomous B2B/B2C Conversational Sales Agent with **Graph-RAG & Personalized PageRank (PPR)**, **Utility-Maximizing Negotiation FSM**, Long-Term Memory, and Structured Output Validation.
 
 ---
 
-## 🌟 Arquitetura & Recursos Big-Tech
+## 🌟 Architecture & Enterprise Features
 
-- **Graph-RAG com Personalized PageRank (PPR)**:
-  - Modelagem do catálogo como Grafo Direcionado de Conhecimento (NetworkX) mapeando compatibilidade, combos e acessórios.
-  - Algoritmo Random Walk with Restart (RWR / PPR) centrado nos itens do carrinho:
+- **Graph-RAG with Personalized PageRank (PPR)**:
+  - Models the product catalog as a Directed Knowledge Graph (NetworkX) mapping compatibility, bundles, and accessories.
+  - Runs Random Walk with Restart (RWR / PPR) centered on items in the shopping cart:
     $$\mathbf{r} = (1 - \alpha) \mathbf{M}^T \mathbf{r} + \alpha \mathbf{p}$$
-    ranqueando recomendações de cross-sell e periféricos por centralidade topológica e relevância relacional.
+    ranking cross-sell and peripheral recommendations by topological centrality and relational relevance.
 - **Utility-Maximizing Negotiation FSM**:
-  - Máquina de Estados Finitos estrita que previne alucinações de descontos e concessões abusivas pelo modelo.
-  - Maximização da utilidade esperada do lojista:
-    $$U(d) = \text{Receita Líquida}(d) \cdot P(\text{conversão} \mid d)$$
-    onde $P(\text{conversão} \mid d) = \frac{1}{1 + e^{-k(d - d_0)}}$ modela a probabilidade empírica de fechamento.
-- **Memória de Longo Prazo Contextual**:
-  - Extração contínua de preferências do usuário (orçamento máximo, marcas preferidas, método de pagamento preferencial).
-- **Provedores Multi-LLM**:
-  - Roteamento dinâmico entre Ollama (Llama-3), Groq e Google Gemini com fallback automático.
+  - Strict Finite State Machine that prevents discount hallucinations and unauthorized concessions by the LLM.
+  - Maximizes the merchant's expected utility:
+    $$U(d) = \text{Net Revenue}(d) \cdot P(\text{conversion} \mid d)$$
+    where $P(\text{conversion} \mid d) = \frac{1}{1 + e^{-k(d - d_0)}}$ models the empirical closing probability.
+- **Contextual Long-Term Memory**:
+  - Continuously extracts user preferences (maximum budget, preferred brands, preferred payment method).
+- **Multi-LLM Providers**:
+  - Dynamic routing across Ollama (Llama-3), Groq, and Google Gemini with automatic fallback.
 
 ---
 
-## 📊 Análise de Algoritmos & Complexidade
+## 📊 Algorithms & Complexity Analysis
 
-| Componente | Algoritmo / Modelo | Complexidade | Propósito |
+| Component | Algorithm / Model | Complexity | Purpose |
 | :--- | :--- | :--- | :--- |
-| **Recuperação de Catálogo** | Híbrido (BM25 + Vetorial + RRF) | $\mathcal{O}(N \log K)$ | Busca textual e semântica resiliente |
-| **Cross-Sell / Bundling** | Personalized PageRank (PPR) | $\mathcal{O}(\|V\| + \|E\|)$ | Ranqueamento por centralidade no ecossistema |
-| **Guarda de Negociação** | FSM Determinística + Sigmóide de Utilidade | $\mathcal{O}(1)$ | Governança de margem e prevenção de alucinação |
+| **Catalog Retrieval** | Hybrid (BM25 + Vector + RRF) | $\mathcal{O}(N \log K)$ | Resilient lexical and semantic search |
+| **Cross-Sell / Bundling** | Personalized PageRank (PPR) | $\mathcal{O}(\|V\| + \|E\|)$ | Ecosystem centrality ranking |
+| **Negotiation Guard** | Deterministic FSM + Utility Sigmoid | $\mathcal{O}(1)$ | Margin governance and hallucination prevention |
 
 ---
 
-## 🚀 Como Executar no Docker
+## 🚀 Running with Docker
 
 ```bash
 docker compose up -d --build
@@ -41,9 +41,9 @@ docker compose up -d --build
 
 ---
 
-## 🧪 Testes Automatizados (56 Testes / 100% Hermético / 92% Cobertura)
+## 🧪 Automated Tests (56 Tests / 100% Hermetic / 92% Coverage)
 
-Execução hermética da suíte de testes unitários:
+Hermetic execution of the unit test suite:
 
 ```bash
 docker run --rm -v $(pwd):/workspace -w /workspace -e PYTHONPATH=/workspace portfolio-spec-engine:test pytest tests/unit -v --cov=app --cov-report=term-missing

@@ -4,20 +4,31 @@ import re
 class IntentRouter:
     INTENTS = {
         "get_order_status": [
-            r"status do pedido",
-            r"onde esta o pedido",
-            r"rastrear pedido",
+            r"order status",
+            r"status of (?:my |the )?order",
+            r"where is (?:my |the )?order",
+            r"track (?:my |the )?order",
         ],
-        "checkout": [r"finalizar compra", r"pagar", r"fechar pedido"],
-        "clear_cart": [r"limpar.*carrinho", r"esvaziar.*carrinho", r"apagar.*carrinho"],
-        "remove_from_cart": [r"remover", r"tirar do carrinho", r"excluir do carrinho"],
-        "add_to_cart": [r"adicionar", r"colocar no carrinho", r"comprar"],
+        "checkout": [
+            r"checkout",
+            r"complete (?:my )?purchase",
+            r"pay",
+            r"finish (?:my )?order",
+            r"place (?:my )?order",
+        ],
+        "clear_cart": [r"clear.*cart", r"empty.*cart", r"delete.*cart"],
+        "remove_from_cart": [
+            r"remove",
+            r"take.*out of.*cart",
+            r"delete from cart",
+        ],
+        "add_to_cart": [r"add", r"put in.*cart", r"buy"],
         "show_cart": [
-            r"mostrar.*carrinho",
-            r"ver.*carrinho",
-            r"o que tem.*carrinho",
-            r"listar.*carrinho",
-            r"meu carrinho",
+            r"show.*cart",
+            r"view.*cart",
+            r"what(?:'s| is) in.*cart",
+            r"list.*cart",
+            r"my cart",
         ],
     }
 

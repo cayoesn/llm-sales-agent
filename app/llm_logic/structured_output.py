@@ -1,4 +1,5 @@
 from typing import Any
+
 from pydantic import BaseModel, Field
 
 
@@ -10,30 +11,44 @@ class RecommendedProduct(BaseModel):
 
 
 class ConversationalSalesResponse(BaseModel):
-    """Schema Pydantic V2 para garantia de saída estruturada do Agente de Vendas."""
-    message: str = Field(description="Resposta amigável em linguagem natural para o cliente.")
-    intent_detected: str = Field(description="Intenção identificada do usuário.")
-    recommended_products: list[RecommendedProduct] = Field(default_factory=list, description="Lista de produtos recomendados via Graph-RAG.")
-    negotiation_applied: bool = Field(default=False, description="Indica se houve negociação ou cálculo de desconto.")
-    next_recommended_action: str | None = Field(default=None, description="Ação sugerida para o próximo passo do cliente.")
+    """Pydantic V2 schema guaranteeing structured output from the Sales Agent."""
+
+    message: str = Field(
+        description="Friendly natural language response for the customer."
+    )
+    intent_detected: str = Field(description="Detected user intent.")
+    recommended_products: list[RecommendedProduct] = Field(
+        default_factory=list,
+        description="List of products recommended via Graph-RAG.",
+    )
+    negotiation_applied: bool = Field(
+        default=False,
+        description="Indicates whether discount negotiation or calculation occurred.",
+    )
+    next_recommended_action: str | None = Field(
+        default=None,
+        description="Suggested next step for the customer.",
+    )
 
 
 class SalesAgentOutputValidator:
-    """Validador e Formatador de Saída Estruturada para o Agente de Vendas."""
+    """Structured Output Validator and Formatter for the Sales Agent."""
 
     @staticmethod
-    def validate_or_fallback(raw_response: dict[str, Any] | str) -> ConversationalSalesResponse:
+    def validate_or_fallback(
+        raw_response: dict[str, Any] | str,
+    ) -> ConversationalSalesResponse:
         if isinstance(raw_response, dict):
             try:
                 return ConversationalSalesResponse(**raw_response)
             except Exception:
                 pass
-        
+
         text = str(raw_response)
         return ConversationalSalesResponse(
             message=text,
             intent_detected="general_chat",
             recommended_products=[],
             negotiation_applied=False,
-            next_recommended_action="Oferecer ajuda para adicionar itens ao carrinho."
+            next_recommended_action="Offer assistance with adding items to the cart.",
         )

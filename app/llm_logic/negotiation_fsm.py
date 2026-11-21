@@ -1,6 +1,6 @@
 import math
 from enum import StrEnum
-from typing import Any, Dict
+
 from pydantic import BaseModel, Field
 
 
@@ -24,11 +24,11 @@ class DiscountApproval(BaseModel):
 
 class NegotiationFSM:
     """Enterprise Negotiation Finite State Machine & Utility Maximizer.
-    
-    Impõe limites corporativos estritos sobre margens de desconto e elegibilidade,
-    calculando a utilidade esperada da transação via função logística de conversão:
-        U(d) = (Receita Líquida) * P(conversão | d)
-    garantindo que o agente maximize a receita esperada sem alucinar concessões.
+
+    Enforces strict corporate bounds on discount margins and eligibility,
+    computing expected transaction utility via a logistic conversion function:
+        U(d) = (Net Revenue) * P(conversion | d)
+    ensuring the agent maximizes expected revenue without hallucinating concessions.
     """
 
     MAX_PIX_DISCOUNT_PERCENT = 10.0
@@ -37,8 +37,8 @@ class NegotiationFSM:
 
     @classmethod
     def _estimate_conversion_probability(cls, discount_percent: float) -> float:
-        """Função logística sigmóide de probabilidade de fechamento da venda."""
-        # Baseline de 40% com 0% de desconto, saturando em 95% para descontos próximos ao teto
+        """Logistic sigmoid function for sale closing probability."""
+        # 40% baseline at 0% discount, saturating near 95% as discounts approach the cap
         k = 0.25
         d0 = 5.0
         p = 1.0 / (1.0 + math.exp(-k * (discount_percent - d0)))
@@ -51,20 +51,22 @@ class NegotiationFSM:
         requested_discount_percent: float,
         payment_method: str = "PIX",
     ) -> DiscountApproval:
-        """Avalia e aprova ou limita a porcentagem de desconto com base em regras estritas e utilidade."""
+        """Evaluate and approve or cap the discount percentage based on strict rules and utility."""
         if cart_total <= 0:
             return DiscountApproval(
                 approved=False,
                 requested_discount_percent=requested_discount_percent,
                 approved_discount_percent=0.0,
                 final_price=0.0,
-                reason="Carrinho sem valor elegível para desconto.",
+                reason="Cart has no eligible value for a discount.",
                 expected_utility=0.0,
                 conversion_probability=0.0,
             )
 
-        # Regra 1: Teto absoluto por método de pagamento e volume
-        max_allowed = cls.MAX_PIX_DISCOUNT_PERCENT if payment_method.upper() == "PIX" else 5.0
+        # Rule 1: Absolute cap by payment method and order volume
+        max_allowed = (
+            cls.MAX_PIX_DISCOUNT_PERCENT if payment_method.upper() == "PIX" else 5.0
+        )
         if cart_total >= 1000.0:
             max_allowed = max(max_allowed, cls.MAX_BULK_DISCOUNT_PERCENT)
 
@@ -76,9 +78,15 @@ class NegotiationFSM:
         expected_utility = round(final_price * conv_prob, 2)
 
         if approved_percent < requested_discount_percent:
-            reason = f"Desconto solicitado de {requested_discount_percent:.1f}% excede a margem permitida. Aplicado teto máximo de {approved_percent:.1f}% para {payment_method}."
+            reason = (
+                f"Requested discount of {requested_discount_percent:.1f}% exceeds the allowed margin. "
+                f"Applied maximum cap of {approved_percent:.1f}% for {payment_method}."
+            )
         else:
-            reason = f"Desconto de {approved_percent:.1f}% aprovado com sucesso para pagamento via {payment_method}."
+            reason = (
+                f"Discount of {approved_percent:.1f}% successfully approved "
+                f"for {payment_method} payment."
+            )
 
         return DiscountApproval(
             approved=True,
@@ -91,5 +99,5 @@ class NegotiationFSM:
         )
 
 
-# Instância Singleton da FSM de Negociação
+# Singleton instance of the Negotiation FSM
 negotiation_fsm = NegotiationFSM()

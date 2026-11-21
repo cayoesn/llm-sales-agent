@@ -1,3 +1,4 @@
+import os
 import sys
 from contextlib import asynccontextmanager
 from functools import lru_cache
@@ -16,13 +17,17 @@ from app.llm_logic.agent import SalesAgent
 def setup_logging():
     logger.remove()
     # JSON-serialized log file for Loki/Promtail
-    logger.add(
-        "/app/logs/api.log",
-        rotation="10 MB",
-        retention="5 days",
-        serialize=True,
-        level="DEBUG",
-    )
+    log_path = os.getenv("LOG_FILE_PATH", "/app/logs/api.log")
+    try:
+        logger.add(
+            log_path,
+            rotation="10 MB",
+            retention="5 days",
+            serialize=True,
+            level="DEBUG",
+        )
+    except OSError:
+        pass
     # Pretty stdout for terminal / docker console logs
     logger.add(
         sys.stdout,

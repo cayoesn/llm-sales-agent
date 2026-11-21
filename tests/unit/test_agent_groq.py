@@ -33,14 +33,14 @@ async def test_agent_chat_groq_no_tools(groq_agent):
     with patch("httpx.AsyncClient.post", return_value=mock_response) as mock_post:
         session = ConversationSession(session_id="s1")
         with patch("app.services.SalesService.get_session", return_value=session):
-            resp = await groq_agent.chat("s1", "oi")
+            resp = await groq_agent.chat("s1", "hi")
             assert resp == "Hello from Groq! How can I help you today?"
             mock_post.assert_called_once()
             _, kwargs = mock_post.call_args
             assert kwargs["json"]["model"] == settings.GROQ_MODEL
             assert "tools" in kwargs["json"]  # Tools are included by default
             assert session.history[-2:] == [
-                {"role": "user", "content": "oi"},
+                {"role": "user", "content": "hi"},
                 {
                     "role": "assistant",
                     "content": "Hello from Groq! How can I help you today?",
@@ -87,7 +87,7 @@ async def test_agent_chat_groq_with_tools(groq_agent):
         ) as mock_add_to_cart:
             session = ConversationSession(session_id="s1")
             with patch("app.services.SalesService.get_session", return_value=session):
-                resp = await groq_agent.chat("s1", "quero um Laptop de 1200")
+                resp = await groq_agent.chat("s1", "I want a Laptop for 1200")
                 assert resp == "I've added the Laptop to your cart!"
                 assert mock_post.call_count == 2
                 mock_add_to_cart.assert_called_once_with(
@@ -106,11 +106,11 @@ async def test_agent_chat_groq_error_handling(groq_agent):
     ) as mock_post:
         session = ConversationSession(session_id="s1")
         with patch("app.services.SalesService.get_session", return_value=session):
-            resp = await groq_agent.chat("s1", "oi")
-            assert resp == "Desculpe, ocorreu um problema ao processar sua solicitação."
+            resp = await groq_agent.chat("s1", "hi")
+            assert resp == "Sorry, an error occurred while processing your request."
             mock_post.assert_called_once()
             # The agent does not add error messages to history in this implementation
-            assert session.history[-1]["content"] == "oi"
+            assert session.history[-1]["content"] == "hi"
 
 
 @pytest.mark.asyncio
@@ -125,8 +125,8 @@ async def test_agent_chat_groq_http_error(groq_agent):
     with patch("httpx.AsyncClient.post", return_value=mock_response) as mock_post:
         session = ConversationSession(session_id="s1")
         with patch("app.services.SalesService.get_session", return_value=session):
-            resp = await groq_agent.chat("s1", "oi")
-            assert resp == "Desculpe, ocorreu um problema ao processar sua solicitação."
+            resp = await groq_agent.chat("s1", "hi")
+            assert resp == "Sorry, an error occurred while processing your request."
             mock_post.assert_called_once()
             # The agent does not add error messages to history in this implementation
-            assert session.history[-1]["content"] == "oi"
+            assert session.history[-1]["content"] == "hi"

@@ -6,9 +6,7 @@ from langfuse import Langfuse
 from loguru import logger
 
 from app.config import settings
-from app.llm_logic.graph_rag import graph_rag_engine
 from app.llm_logic.long_term_memory import memory_engine
-from app.llm_logic.negotiation_fsm import negotiation_fsm
 from app.llm_logic.providers.base import LLMProviderClient
 from app.llm_logic.providers.gemini import GeminiProviderClient
 from app.llm_logic.providers.groq import GroqProviderClient
@@ -116,44 +114,35 @@ class SalesAgent:
     def _normalize_tool_arguments(self, arguments: dict[str, Any]) -> dict[str, Any]:
         normalized: dict[str, Any] = {}
         alias_map: dict[str, str] = {
-            "produto": "product_name",
-            "produto_id": "product_name",
-            "descricao": "product_name",
             "description": "product_name",
             "item_id": "product_name",
             "item": "product_name",
             "product": "product_name",
             "name": "product_name",
             "item_name": "product_name",
-            "produto_nome": "product_name",
             "product_id": "product_name",
-            "nome_produto": "product_name",
             "product_name": "product_name",
-            "quantidade": "quantity",
-            "qtd": "quantity",
+            "qty": "quantity",
+            "count": "quantity",
             "quantity": "quantity",
-            "preco": "price",
-            "preço": "price",
             "price": "price",
-            "valor": "price",
-            "valor_unitario": "price",
-            "carrinho": "session_id",
-            "carrinho_id": "session_id",
+            "unit_price": "price",
+            "amount": "price",
+            "cart": "session_id",
             "cart_id": "session_id",
             "session_id": "session_id",
             "user_id": "session_id",
-            "usuario_id": "session_id",
-            "pedido_id": "order_id",
             "order_id": "order_id",
             "id": "order_id",
-            "pedido": "order_id",
-            "numero_pedido": "order_id",
-            "num_pedido": "order_id",
-            "desconto": "requested_discount_percent",
-            "percentual": "requested_discount_percent",
+            "order": "order_id",
+            "order_number": "order_id",
+            "discount": "requested_discount_percent",
+            "discount_percent": "requested_discount_percent",
+            "percentage": "requested_discount_percent",
+            "requested_discount_percent": "requested_discount_percent",
             "query": "query",
-            "busca": "query",
-            "pesquisa": "query",
+            "search": "query",
+            "search_query": "query",
         }
         for key, value in arguments.items():
             normalized_key = alias_map.get(key, key)
@@ -226,18 +215,31 @@ class SalesAgent:
                 args = function.get("arguments", {})
 
                 if func_name == "get_order_status" and not args.get("order_id"):
-                    user_message = next((m.get("content") for m in reversed(session.history) if m.get("role") == "user"), "")
-                    uuid_match = re.search(r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}", user_message)
+                    user_message = next(
+                        (
+                            m.get("content")
+                            for m in reversed(session.history)
+                            if m.get("role") == "user"
+                        ),
+                        "",
+                    )
+                    uuid_match = re.search(
+                        r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}",
+                        user_message,
+                    )
                     if uuid_match:
                         args["order_id"] = uuid_match.group(0)
 
                 missing_fields = self.field_validator.validate(func_name, args)
                 if missing_fields:
                     return {
-                        "content": f"Por favor, forneça os seguintes campos: {', '.join(missing_fields)}"
+                        "content": f"Please provide the following fields: {', '.join(missing_fields)}"
                     }
 
-                if "session_id" not in args and func_name not in {"get_order_status", "search_catalog_graph_rag"}:
+                if "session_id" not in args and func_name not in {
+                    "get_order_status",
+                    "search_catalog_graph_rag",
+                }:
                     args["session_id"] = session_id
 
                 if not hasattr(SalesService, func_name):
@@ -253,7 +255,7 @@ class SalesAgent:
                 session.history.append(
                     {
                         "role": "tool",
-                        "content": f"[Resultado de {func_name}]: {result}",
+                        "content": f"[Result of {func_name}]: {result}",
                         "name": func_name,
                     }
                 )
@@ -268,7 +270,9 @@ class SalesAgent:
                 )
 
             if last_tool_produces_final_response:
-                span.end(output={"final_response": {"content": last_tool_executed_result}})
+                span.end(
+                    output={"final_response": {"content": last_tool_executed_result}}
+                )
                 return {"content": last_tool_executed_result}
 
             memory_context = memory_engine.format_memory_prompt_context(session_id)
@@ -277,9 +281,9 @@ class SalesAgent:
                 {
                     "role": "system",
                     "content": (
-                        "Você é o StoreCore AI Enterprise, um assistente virtual de vendas de alta performance. "
-                        "Sua principal função é auxiliar os clientes em suas compras, "
-                        "gerenciando o carrinho, consultando o catálogo via Graph-RAG e negociando descontos estritos. "
+                        "You are StoreCore AI Enterprise, a high-performance virtual sales assistant. "
+                        "Your primary role is to assist customers with their purchases, "
+                        "managing the shopping cart, querying the catalog via Graph-RAG, and negotiating strict discounts. "
                         f"{memory_context}"
                     ),
                 },
@@ -287,9 +291,9 @@ class SalesAgent:
                 {
                     "role": "user",
                     "content": (
-                        "As ferramentas acima já foram executadas e os resultados estão no histórico. "
-                        "Responda ao usuário em linguagem natural com base nesses resultados. "
-                        "NÃO chame nenhuma ferramenta adicional."
+                        "The tools above have already been executed and their results are in the conversation history. "
+                        "Respond to the user in natural language based on those results. "
+                        "Do NOT call any additional tools."
                     ),
                 },
             ]
@@ -306,7 +310,9 @@ class SalesAgent:
         span.end(output={"final_response": message_obj})
         return message_obj
 
-    async def _execute_tool_span(self, trace: Any, tool_func: Any, func_name: str, args: dict[str, Any]) -> Any:
+    async def _execute_tool_span(
+        self, trace: Any, tool_func: Any, func_name: str, args: dict[str, Any]
+    ) -> Any:
         span = trace.span(name=f"tool_{func_name}", input={"args": args})
         try:
             result = await tool_func(**args)
@@ -321,7 +327,7 @@ class SalesAgent:
         trace.update(input={"message": message})
         session = await SalesService.get_session(session_id)
 
-        # 1. Atualizar Memória de Longo Prazo do Cliente (Mem0 Pattern)
+        # 1. Update Customer Long-Term Memory (Mem0 Pattern)
         memory_engine.extract_and_update_memory(session_id, message)
         memory_prompt_context = memory_engine.format_memory_prompt_context(session_id)
 
@@ -354,10 +360,10 @@ class SalesAgent:
                 {
                     "role": "system",
                     "content": (
-                        "Você é o StoreCore AI Enterprise, um assistente de vendas conversacional inteligente. "
-                        "Você gerencia carrinho de compras, pesquisa o catálogo usando Graph-RAG com RRF, "
-                        "aplica descontos estritos com a FSM de negociação sem aluciná-los "
-                        "e recomenda produtos personalizados. "
+                        "You are StoreCore AI Enterprise, an intelligent conversational sales assistant. "
+                        "You manage the shopping cart, search the catalog using Graph-RAG with RRF, "
+                        "apply strict discounts via the negotiation FSM without hallucinating them, "
+                        "and recommend personalized products. "
                         f"{memory_prompt_context}"
                     ),
                 },
@@ -382,10 +388,14 @@ class SalesAgent:
                     intent,
                 )
 
-            raw_content = message_obj.get("content", "") or "Ação concluída com sucesso."
-            
-            # Validação via Structured Outputs Engine
-            validated_output = SalesAgentOutputValidator.validate_or_fallback(raw_content)
+            raw_content = (
+                message_obj.get("content", "") or "Action completed successfully."
+            )
+
+            # Validation via Structured Outputs Engine
+            validated_output = SalesAgentOutputValidator.validate_or_fallback(
+                raw_content
+            )
             final_content = validated_output.message
 
             session.history.append({"role": "assistant", "content": final_content})
@@ -396,6 +406,6 @@ class SalesAgent:
         except Exception as error:
             logger.exception(f"[CHAT] Error processing request: {error}")
             trace.update(level="ERROR", status_message=str(error))
-            return "Desculpe, ocorreu um problema ao processar sua solicitação."
+            return "Sorry, an error occurred while processing your request."
         finally:
             langfuse.flush()

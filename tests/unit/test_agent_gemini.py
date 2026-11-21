@@ -29,7 +29,7 @@ async def test_agent_chat_gemini_no_tools():
             "app.llm_logic.agent._build_genai_client", return_value=mock_genai_client
         ):
             agent = SalesAgent()
-            resp = await agent.chat("s1", "oi")
+            resp = await agent.chat("s1", "hi")
             assert resp == "Gemini response"
 
 
@@ -38,7 +38,7 @@ async def test_agent_chat_gemini_with_tools():
     mock_part1 = MagicMock()
     mock_part1.function_call.name = "add_to_cart"
     mock_part1.function_call.args = {
-        "product_name": "Tênis",
+        "product_name": "Sneakers",
         "quantity": 1,
         "price": 100.0,
     }
@@ -60,7 +60,7 @@ async def test_agent_chat_gemini_with_tools():
         with patch(
             "app.llm_logic.agent._build_genai_client", return_value=mock_genai_client
         ):
-            with patch("app.services.SalesService.add_to_cart", return_value="Sucesso"):
+            with patch("app.services.SalesService.add_to_cart", return_value="Success"):
                 agent = SalesAgent()
-                resp = await agent.chat("s1", "comprar tênis")
+                resp = await agent.chat("s1", "buy sneakers")
                 assert resp == "Added via Gemini!"

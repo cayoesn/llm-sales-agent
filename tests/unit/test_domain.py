@@ -46,6 +46,6 @@ def test_cart_items_are_not_shared():
 def test_session_history_is_not_shared():
     first_session = ConversationSession(session_id="s1")
     second_session = ConversationSession(session_id="s2")
-    first_session.history.append({"role": "user", "content": "oi"})
+    first_session.history.append({"role": "user", "content": "hi"})
 
     assert second_session.history == []

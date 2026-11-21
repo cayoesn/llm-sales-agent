@@ -34,7 +34,7 @@ async def test_agent_integration_with_service_and_repo():
                             "function": {
                                 "name": "add_to_cart",
                                 "arguments": {
-                                    "product_name": "Tênis Nike",
+                                    "product_name": "Nike Sneakers",
                                     "quantity": 2,
                                     "price": 299.9,
                                 },
@@ -46,7 +46,7 @@ async def test_agent_integration_with_service_and_repo():
             ],
         ):
             # Execute the agent chat
-            response = await agent.chat(session_id, "quero 2 tênis nike de 299.9")
+            response = await agent.chat(session_id, "I want 2 Nike sneakers for 299.9")
 
             # Verify the result from LLM summary
             assert "Done!" in response
@@ -55,7 +55,7 @@ async def test_agent_integration_with_service_and_repo():
             # VERIFY INTEGRATION: Check if the product was ACTUALLY added to the repository
             cart = await SalesService.get_or_create_cart(session_id)
             assert len(cart.items) == 1
-            assert cart.items[0].name == "Tênis Nike"
+            assert cart.items[0].name == "Nike Sneakers"
             assert cart.items[0].quantity == 2
             assert cart.items[0].price == 299.9
 
@@ -69,7 +69,7 @@ async def test_agent_checkout_integration():
     session_id = "test_checkout_s1"
 
     # Pre-populate cart via service
-    await SalesService.add_to_cart(session_id, "Camisa", 1, 50.0)
+    await SalesService.add_to_cart(session_id, "T-Shirt", 1, 50.0)
 
     with patch("app.llm_logic.agent.settings.LLM_PROVIDER", "ollama"):
         with patch(
@@ -80,7 +80,7 @@ async def test_agent_checkout_integration():
                 {"content": "Order completed! Here is your PIX code."},
             ],
         ):
-            await agent.chat(session_id, "quero finalizar minha compra")
+            await agent.chat(session_id, "I want to complete my purchase")
 
             # VERIFY INTEGRATION: Cart should be cleared and Order should exist in repo
             assert session_id not in repo.carts

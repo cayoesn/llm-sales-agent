@@ -21,10 +21,10 @@ async def test_agent_chat_ollama_no_tools():
         agent = SalesAgent()
         agent.provider.chat = mock_chat
 
-        resp = await agent.chat("s1", "oi")
+        resp = await agent.chat("s1", "hi")
         assert resp == "Hello! How can I help?"
         assert session.history[-2:] == [
-            {"role": "user", "content": "oi"},
+            {"role": "user", "content": "hi"},
             {"role": "assistant", "content": "Hello! How can I help?"},
         ]
 
@@ -41,7 +41,7 @@ async def test_agent_chat_ollama_with_choice_response_format():
         session = ConversationSession(session_id="s1")
         with patch("app.services.SalesService.get_session", return_value=session):
             agent = SalesAgent()
-            resp = await agent.chat("s1", "oi")
+            resp = await agent.chat("s1", "hi")
             assert resp == "Hello from choices format!"
 
 
@@ -56,7 +56,7 @@ async def test_agent_chat_ollama_with_tools():
                     "function": {
                         "name": "add_to_cart",
                         "arguments": {
-                            "product_name": "Tênis",
+                            "product_name": "Sneakers",
                             "quantity": 1,
                             "price": 100.0,
                         },
@@ -79,7 +79,7 @@ async def test_agent_chat_ollama_with_tools():
             return_value="Success",
         ):
             agent = SalesAgent()
-            resp = await agent.chat("s1", "quero um tênis")
+            resp = await agent.chat("s1", "I want sneakers")
             assert resp == "I added the sneakers to your cart!"
 
 
@@ -96,9 +96,9 @@ async def test_agent_chat_ollama_with_indexed_tool_call():
                         "index": 0,
                         "name": "",
                         "arguments": {
-                            "produto_id": "tênis_de_corrida",
-                            "quantidade": 2,
-                            "carrinho_id": "s1",
+                            "product_id": "running_shoes",
+                            "qty": 2,
+                            "cart_id": "s1",
                         },
                     }
                 }
@@ -118,8 +118,8 @@ async def test_agent_chat_ollama_with_indexed_tool_call():
             new_callable=AsyncMock,
             return_value="Success",
         ):
-            resp = await agent.chat("s1", "quero adicionar 2 tênis de corrida")
-            assert "Por favor, forneça os seguintes campos" in resp
+            resp = await agent.chat("s1", "I want to add 2 running shoes")
+            assert "Please provide the following fields" in resp
 
 
 @pytest.mark.asyncio
@@ -134,8 +134,8 @@ async def test_agent_chat_ollama_with_tool_call_missing_price():
                     "function": {
                         "name": "add_to_cart",
                         "arguments": {
-                            "produto": "tênis de corrida",
-                            "quantidade": 2,
+                            "product": "running shoes",
+                            "qty": 2,
                         },
                     }
                 }
@@ -155,8 +155,8 @@ async def test_agent_chat_ollama_with_tool_call_missing_price():
             new_callable=AsyncMock,
             return_value="Success",
         ):
-            resp = await agent.chat("s1", "quero adicionar 2 tênis de corrida")
-            assert "Por favor, forneça os seguintes campos" in resp
+            resp = await agent.chat("s1", "I want to add 2 running shoes")
+            assert "Please provide the following fields" in resp
 
 
 @pytest.mark.asyncio
@@ -171,9 +171,9 @@ async def test_agent_chat_ollama_with_description_alias():
                     "function": {
                         "name": "add_to_cart",
                         "arguments": {
-                            "descricao": "tênis de corrida",
-                            "quantidade": 2,
-                            "preco": 150.0,
+                            "description": "running shoes",
+                            "qty": 2,
+                            "unit_price": 150.0,
                         },
                     }
                 }
@@ -183,7 +183,7 @@ async def test_agent_chat_ollama_with_description_alias():
 
     mock_res2 = MagicMock()
     mock_res2.json.return_value = {
-        "message": {"content": "Added the product using descricao alias."}
+        "message": {"content": "Added the product using description alias."}
     }
 
     with patch("httpx.AsyncClient.post", side_effect=[mock_res1, mock_res2]):
@@ -193,8 +193,8 @@ async def test_agent_chat_ollama_with_description_alias():
             new_callable=AsyncMock,
             return_value="Success",
         ):
-            resp = await agent.chat("s1", "quero adicionar 2 tênis de corrida")
-            assert resp == "Added the product using descricao alias."
+            resp = await agent.chat("s1", "I want to add 2 running shoes")
+            assert resp == "Added the product using description alias."
 
 
 @pytest.mark.asyncio
@@ -209,9 +209,9 @@ async def test_agent_chat_ollama_with_item_id_alias():
                     "function": {
                         "name": "add_to_cart",
                         "arguments": {
-                            "item_id": "tênis_de_corrida",
-                            "quantidade": 2,
-                            "preco": 150.0,
+                            "item_id": "running_shoes",
+                            "qty": 2,
+                            "unit_price": 150.0,
                         },
                     }
                 }
@@ -231,7 +231,7 @@ async def test_agent_chat_ollama_with_item_id_alias():
             new_callable=AsyncMock,
             return_value="Success",
         ):
-            resp = await agent.chat("s1", "quero adicionar 2 tênis de corrida")
+            resp = await agent.chat("s1", "I want to add 2 running shoes")
             assert resp == "Added the product using item_id alias."
 
 
@@ -246,7 +246,7 @@ async def test_agent_chat_ollama_with_user_id_json_arguments():
                 {
                     "function": {
                         "name": "add_to_cart",
-                        "arguments": '{"user_id":"s1","produto":"tênis de corrida","quantidade":2,"preco":150.0}',
+                        "arguments": '{"user_id":"s1","product":"running shoes","qty":2,"unit_price":150.0}',
                     }
                 }
             ],
@@ -265,7 +265,7 @@ async def test_agent_chat_ollama_with_user_id_json_arguments():
             new_callable=AsyncMock,
             return_value="Success",
         ):
-            resp = await agent.chat("s1", "quero adicionar 2 tênis de corrida")
+            resp = await agent.chat("s1", "I want to add 2 running shoes")
             assert resp == "Added the product using JSON arguments."
 
 
@@ -294,15 +294,18 @@ async def test_agent_chat_ollama_with_show_cart():
         with patch(
             "app.services.SalesService.show_cart",
             new_callable=AsyncMock,
-            return_value="2x Tênis - R$ 150.00 each - Total R$ 300.00\nCart total: R$ 300.00",
+            return_value="2x Sneakers - $150.00 each - Total $300.00\nCart total: $300.00",
         ):
             agent = SalesAgent()
-            resp = await agent.chat("s1", "mostrar meu carrinho")
-            assert resp == "2x Tênis - R$ 150.00 each - Total R$ 300.00\nCart total: R$ 300.00"
+            resp = await agent.chat("s1", "show my cart")
+            assert (
+                resp
+                == "2x Sneakers - $150.00 each - Total $300.00\nCart total: $300.00"
+            )
 
 
 @pytest.mark.asyncio
-async def test_agent_chat_ollama_with_carrinho_alias():
+async def test_agent_chat_ollama_with_cart_alias():
     mock_res1 = MagicMock()
     mock_res1.json.return_value = {
         "message": {
@@ -313,9 +316,9 @@ async def test_agent_chat_ollama_with_carrinho_alias():
                     "function": {
                         "name": "add_to_cart",
                         "arguments": {
-                            "produto": "tênis de corrida",
-                            "quantidade": 2,
-                            "carrinho": "s1",
+                            "product": "running shoes",
+                            "qty": 2,
+                            "cart": "s1",
                         },
                     }
                 }
@@ -325,7 +328,7 @@ async def test_agent_chat_ollama_with_carrinho_alias():
 
     mock_res2 = MagicMock()
     mock_res2.json.return_value = {
-        "message": {"content": "Added the product using carrinho alias."}
+        "message": {"content": "Added the product using cart alias."}
     }
 
     with patch("httpx.AsyncClient.post", side_effect=[mock_res1, mock_res2]):
@@ -335,16 +338,16 @@ async def test_agent_chat_ollama_with_carrinho_alias():
             new_callable=AsyncMock,
             return_value="Success",
         ):
-            resp = await agent.chat("s1", "quero adicionar 2 tênis de corrida")
-            assert "Por favor, forneça os seguintes campos" in resp
+            resp = await agent.chat("s1", "I want to add 2 running shoes")
+            assert "Please provide the following fields" in resp
 
 
 @pytest.mark.asyncio
 async def test_agent_chat_error():
     with patch("httpx.AsyncClient.post", side_effect=Exception("Network error")):
         agent = SalesAgent()
-        resp = await agent.chat("s1", "oi")
-        assert resp == "Desculpe, ocorreu um problema ao processar sua solicitação."
+        resp = await agent.chat("s1", "hi")
+        assert resp == "Sorry, an error occurred while processing your request."
 
 
 @pytest.mark.asyncio
@@ -358,25 +361,30 @@ async def test_agent_extract_uuid_from_history():
                 {
                     "function": {
                         "name": "get_order_status",
-                        "arguments": {}, # missing order_id
+                        "arguments": {},  # missing order_id
                     }
                 }
             ]
         }
     }
-    
+
     # We skip the 2nd call by using produces_final_response=True for get_order_status
 
     session = ConversationSession(session_id="s1")
-    session.history.append({"role": "user", "content": f"Meu pedido é {order_id}"})
-    
+    session.history.append({"role": "user", "content": f"My order is {order_id}"})
+
     with patch("app.services.SalesService.get_session", return_value=session):
         with patch("httpx.AsyncClient.post", return_value=mock_res1):
-            with patch("app.services.SalesService.get_order_status", new_callable=AsyncMock, return_value="Status: OK") as mock_tool:
+            with patch(
+                "app.services.SalesService.get_order_status",
+                new_callable=AsyncMock,
+                return_value="Status: OK",
+            ) as mock_tool:
                 agent = SalesAgent()
-                await agent.chat("s1", f"qual o status do pedido {order_id}?")
+                await agent.chat("s1", f"what is the order status for {order_id}?")
                 # Verify tool was called with the extracted UUID
                 mock_tool.assert_called_once_with(order_id=order_id)
+
 
 @pytest.mark.asyncio
 async def test_agent_tool_execution_error():
@@ -396,7 +404,9 @@ async def test_agent_tool_execution_error():
     }
 
     with patch("httpx.AsyncClient.post", return_value=mock_res1):
-        with patch("app.services.SalesService.show_cart", side_effect=Exception("Tool failed")):
+        with patch(
+            "app.services.SalesService.show_cart", side_effect=Exception("Tool failed")
+        ):
             agent = SalesAgent()
-            resp = await agent.chat("s1", "ver carrinho")
-            assert resp == "Desculpe, ocorreu um problema ao processar sua solicitação."
+            resp = await agent.chat("s1", "view cart")
+            assert resp == "Sorry, an error occurred while processing your request."
